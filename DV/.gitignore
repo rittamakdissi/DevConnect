@@ -1,0 +1,27 @@
+# created by virtualenv automatically
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtual environment
+venv/
+env/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# Django
+staticfiles/
+media/
+local_settings.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
