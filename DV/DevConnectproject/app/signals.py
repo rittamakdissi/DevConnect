@@ -1,0 +1,8 @@
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+from .models import Media
+
+@receiver(post_delete, sender=Media)
+def delete_image_file(sender, instance, **kwargs):
+    if instance.image:
+        instance.image.delete(save=False)
