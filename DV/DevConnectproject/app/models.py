@@ -62,6 +62,7 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
+
 ###################################################################
 class Post(models.Model):
     POST_TYPES = (
@@ -76,7 +77,7 @@ class Post(models.Model):
         on_delete=models.CASCADE,
         related_name="posts",
     )
-    # محتوى المنشور: نص عادي أو كود أو نسخة محسّنة من الذكاء
+
     content = models.TextField()
 
     # الوسوم يلي الذكاء رح يولدها
@@ -85,9 +86,8 @@ class Post(models.Model):
     # شرح الذكاء للكود
     ai_summary = models.TextField(blank=True, null=True)
 
-     # نص محسّن أو ملخّص يولده الذكاء
-    ai_improved = models.TextField(blank=True, null=True)   
-
+    # نص محسّن أو ملخّص يولده الذكاء
+    ai_improved = models.TextField(blank=True, null=True)
 
     # نوع المنشور — الذكاء هو يلي يختارو
     post_type = models.CharField(
@@ -100,8 +100,48 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+  
+    #  🔥 دالة حساب عدد التفاعلات
+    def get_reaction_counts(self):
+        """"          
+        ترجع عدد كل نوع تفاعل على المنشور كقاموس:
+        {
+            "useful": 3,
+            "not_useful": 1,
+            "same_problem": 0,
+            "creative_solution": 2
+        }
+        """
+       
+        from django.db.models import Count
+        from .models import Reaction  # رح نعرّف الموديل لاحقاً
+
+        data = self.reactions.values("reaction_type").annotate(count=Count("reaction_type"))
+        result = {item["reaction_type"]: item["count"] for item in data}
+
+        # لضمان ظهور الأنواع التي ليس لها أي تفاعل (صفر)
+        for rt, _ in Reaction.REACTION_TYPES:
+            result.setdefault(rt, 0)
+
+        return result
+    
+ # 🔥 عدد جميع التعليقات (الرئيسية + الردود)
+    @property
+    def total_comments(self):
+        return self.comments.count()
+
+
     def __str__(self):
         return f"Post {self.id} by {self.user.username}"
+    
+
+"""  
+اذا بدنا نضيف عدد التعليقات الرئيسية على المنشور فقط  
+    @property
+    def comments_count(self):
+        return self.comments.filter(parent__isnull=True).count()"""
+
+
 
 
 ####################################################
@@ -126,6 +166,7 @@ class Follow(models.Model):
         return f"{self.follower.username} follows {self.following.username}"
 
 
+
 ###################################################################
 class Media(models.Model):
     post = models.ForeignKey("Post", on_delete=models.CASCADE, related_name="images")
@@ -136,3 +177,211 @@ class Media(models.Model):
 
     def __str__(self):
         return f"Image {self.id} for Post {self.post.id}"
+    
+
+#####################################################################
+class Reaction(models.Model):
+    REACTION_TYPES = (
+        ("useful", "Useful"),
+        ("not_useful", "Not Useful"),
+        ("same_problem", "Same Problem"),
+        ("creative_solution", "Creative Solution"),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reactions"
+    )
+
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="reactions"
+    )
+
+    reaction_type = models.CharField(
+        max_length=20,
+        choices=REACTION_TYPES
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "post")  
+        #  كل مستخدم له تفاعل واحد فقط على نفس البوست
+        # وإذا غيّر رأيه يتم تغيير نوع التفاعل بدل إنشاء واحد جديد
+
+    def __str__(self):
+        return f"{self.user.username} reacted '{self.reaction_type}' on Post {self.post.id}"
+####################################################################
+class Comment(models.Model):
+    post = models.ForeignKey(
+        "Post",
+        on_delete=models.CASCADE,
+        related_name="comments"
+    )
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="comments"
+    )
+
+    content = models.TextField()  # نص التعليق
+
+    parent = models.ForeignKey(  # تعليق داخل تعليق 
+        "self",
+        on_delete=models.CASCADE,
+        related_name="replies",
+        null=True,
+        blank=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    # ما بعرف اذا رح يلزمنا هاد يعني اذا بدا ياه بصير يطلع تاريخ التعديل مكان تاريخ النشر لمل المستخدم يعدل منشورو
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Comment {self.id} by {self.user.username}"
+
+    # -----------  عدد تفاعلات useful على التعليق -----------
+    @property
+    def useful_count(self):
+        return self.useful_set.count()
+    
+    # -----------  عدد الردود على التعليق الرئيسي فقط لانو هيك واجهاتنا  -----------
+    @property
+    def replies_count(self):
+        return self.replies.count()
+    
+
+##############################################################################
+class CommentUseful(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="useful_comments"
+    )
+    comment = models.ForeignKey(
+        Comment,
+        on_delete=models.CASCADE,
+        related_name="useful_set"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "comment")  # المستخدم ما بيقدر يعمل Useful مرتين
+
+    def __str__(self):
+        return f"{self.user.username} reacted on /Comment{self.comment.id}/ as useful"
+
+
+####################################################################
+class Notification(models.Model):
+
+    NOTIFICATION_TYPES = (
+        ("post_reaction", "Reaction on your post"),
+        ("comment_reaction", "Reaction on your comment"),
+        ("new_comment", "New comment on your post"),
+        ("reply_comment", "Reply to your comment"),
+        ("follow", "New follower"),
+    )
+
+    # الشخص اللي يستقبل الإشعار
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+
+    # الشخص اللي عمل الفعل (المصدر)
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_notifications"
+    )
+
+    notification_type = models.CharField(
+        max_length=30,
+        choices=NOTIFICATION_TYPES
+    )
+
+    # إشعار نحطو داخلو post, comment, etc حسب نوع الفعل
+    post = models.ForeignKey(
+        "Post",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications"
+    )
+
+    comment = models.ForeignKey(
+        "Comment",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # هل المستخدم شاف الإشعار؟
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notification to '{self.to_user.username}' -> ({self.notification_type})"
+
+#################################################################
+class AiTask(models.Model):
+
+    TASK_TYPES = [
+        ("classify_post", "Classify Post"),
+        ("auto_tags", "Auto Tags for Post"),
+        ("code_summary", "Code Summary"),
+        ("improve_post", "Improve Post Writing"),
+        ("generate_post", "Generate Post"),
+    ]
+
+    STATUS_TYPES = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("done", "Done"),
+        ("failed", "Failed"),
+    ]
+
+    # مين طلب المهمة
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_tasks"
+    )
+
+    # نوع المهمة
+    task_type = models.CharField(max_length=50, choices=TASK_TYPES)
+
+    # الحالة
+    status = models.CharField(max_length=20, choices=STATUS_TYPES, default="pending")
+
+    # المدخلات → الشي يلي بدك AI يشتغل عليه
+    input_text = models.TextField(null=True, blank=True)
+
+    # النتيجة → رجعها AI
+    output_text = models.TextField(null=True, blank=True)
+
+    # المهمة مرتبطة بمنشور؟ (معظم مهامك خاصة بالبوست)
+    post = models.ForeignKey(
+        "Post",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_tasks"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    error_message = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.task_type} - ({self.status}) by {self.user.username}"
