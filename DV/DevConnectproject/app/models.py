@@ -382,6 +382,7 @@ class AiTask(models.Model):
     processed_at = models.DateTimeField(null=True, blank=True)
 
     error_message = models.TextField(null=True, blank=True)
-
+    
     def __str__(self):
         return f"{self.task_type} - ({self.status}) by {self.user.username}"
+    
