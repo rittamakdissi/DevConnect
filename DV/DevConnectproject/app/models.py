@@ -7,6 +7,11 @@ from django.contrib.auth.models import AbstractUser
 
 
 class User(AbstractUser):
+    
+    GENDER_CHOICES = (
+        ("male", "Male"),
+        ("female", "Female"),
+    )
 
     # Validators
     username_validator = RegexValidator(
@@ -42,9 +47,13 @@ class User(AbstractUser):
     bio = models.TextField(blank=True, null=True)
     personal_photo = models.ImageField(upload_to="avatars/", blank=True, null=True)
     links = models.JSONField(default=dict, blank=True, null=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    #updated_at = models.DateTimeField(auto_now=True)
+    #created_at = models.DateTimeField(auto_now_add=True)
+    gender = models.CharField(
+    max_length=10,
+    choices=GENDER_CHOICES,
+    )
+    
     # Login with email instead of username
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name", "age", "phone_number"]
@@ -58,18 +67,18 @@ class User(AbstractUser):
       return self.following.count()
     
 
-
     def __str__(self):
         return self.email
 
 
-###################################################################
+############################################################################################################
 class Post(models.Model):
     POST_TYPES = (
         ("question", "Question"),
         ("project", "Project"),
-        ("bug", "Bug"),
+        ("problem", "Problem"),
         ("information", "Information"),
+        ("artical", "Artical"),
     )
 
     user = models.ForeignKey(
@@ -129,7 +138,11 @@ class Post(models.Model):
     @property
     def total_comments(self):
         return self.comments.count()
-
+    
+    # 🔥 دالة لإرجاع جميع المنشورات التي تحتوي على تاغ محدد
+    @classmethod
+    def get_posts_by_tag(cls, tag_name):
+        return cls.objects.filter(tags__icontains=tag_name)
 
     def __str__(self):
         return f"Post {self.id} by {self.user.username}"
@@ -143,8 +156,7 @@ class Post(models.Model):
 
 
 
-
-####################################################
+############################################################################################################
 class Follow(models.Model):
     follower = models.ForeignKey(settings.AUTH_USER_MODEL,related_name="following_set",on_delete=models.CASCADE )
     following = models.ForeignKey( settings.AUTH_USER_MODEL, related_name="followers_set", on_delete=models.CASCADE )
@@ -167,7 +179,7 @@ class Follow(models.Model):
 
 
 
-###################################################################
+############################################################################################################
 class Media(models.Model):
     post = models.ForeignKey("Post", on_delete=models.CASCADE, related_name="images")
     # هاد الحقل قلي انو خياري يعني ما بعرف اذا رح نستفيد منو لبعدين 
@@ -179,7 +191,7 @@ class Media(models.Model):
         return f"Image {self.id} for Post {self.post.id}"
     
 
-#####################################################################
+############################################################################################################
 class Reaction(models.Model):
     REACTION_TYPES = (
         ("useful", "Useful"),
@@ -214,7 +226,10 @@ class Reaction(models.Model):
 
     def __str__(self):
         return f"{self.user.username} reacted '{self.reaction_type}' on Post {self.post.id}"
-####################################################################
+    
+
+
+############################################################################################################
 class Comment(models.Model):
     post = models.ForeignKey(
         "Post",
@@ -228,9 +243,9 @@ class Comment(models.Model):
         related_name="comments"
     )
 
-    content = models.TextField()  # نص التعليق
+    content = models.TextField()# نص التعليق
 
-    parent = models.ForeignKey(  # تعليق داخل تعليق 
+    parent = models.ForeignKey( # التعليق الرئيسي
         "self",
         on_delete=models.CASCADE,
         related_name="replies",
@@ -239,45 +254,58 @@ class Comment(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    # ما بعرف اذا رح يلزمنا هاد يعني اذا بدا ياه بصير يطلع تاريخ التعديل مكان تاريخ النشر لمل المستخدم يعدل منشورو
+    # ما بظن ضروري لانو ما عنا مكان نعرض فيه تم التعديل 
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"Comment {self.id} by {self.user.username}"
-
-    # -----------  عدد تفاعلات useful على التعليق -----------
+    # -----------  عدد useful على التعليق -----------
     @property
     def useful_count(self):
-        return self.useful_set.count()
+        return self.reactions.filter(reaction_type='useful').count()
     
-    # -----------  عدد الردود على التعليق الرئيسي فقط لانو هيك واجهاتنا  -----------
+    # -----------  عدد not useful على التعليق -----------
+    @property
+    def not_useful_count(self):
+        return self.reactions.filter(reaction_type='not_useful').count()
+
+    # -----------  عدد الردود المباشرة فقط -----------
     @property
     def replies_count(self):
         return self.replies.count()
     
+    def __str__(self):
+        return f"Comment {self.id} by {self.user.username}"
 
-##############################################################################
-class CommentUseful(models.Model):
+    
+
+############################################################################################################
+class CommentReaction(models.Model):
+    REACTION_TYPES = [
+        ('useful', 'Useful'),
+        ('not_useful', 'Not Useful'),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="useful_comments"
+        related_name="comment_reactions"
     )
     comment = models.ForeignKey(
         Comment,
         on_delete=models.CASCADE,
-        related_name="useful_set"
+        related_name="reactions"
     )
+
+    reaction_type = models.CharField(max_length=20, choices=REACTION_TYPES)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("user", "comment")  # المستخدم ما بيقدر يعمل Useful مرتين
+        unique_together = ("user", "comment")
 
     def __str__(self):
-        return f"{self.user.username} reacted on /Comment{self.comment.id}/ as useful"
+        return f"{self.user.username} reacted ({self.reaction_type}) on {self.comment}"
 
 
-####################################################################
+############################################################################################################
 class Notification(models.Model):
 
     NOTIFICATION_TYPES = (
@@ -332,7 +360,8 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification to '{self.to_user.username}' -> ({self.notification_type})"
 
-#################################################################
+
+############################################################################################################
 class AiTask(models.Model):
 
     TASK_TYPES = [
