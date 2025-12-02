@@ -4,6 +4,9 @@ from django.contrib.auth import get_user_model
 
 
 User = get_user_model()
+
+
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -99,80 +102,135 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
-    #####################################################################################################
+################################################################################################   
+#class UserSerializer(serializers.ModelSerializer):
+#       هاد ما بقا الو فائدة رح علقو بس ما رح نحذفو هلق
+#     followers_count = serializers.IntegerField(read_only=True)
+#     following_count = serializers.IntegerField(read_only=True)
+#     personal_photo_url = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = User
+#         fields = [
+#             "id",
+#             "first_name",
+#             "last_name",
+#             "username",
+#             "email",
+#             "age",
+#             "gender",
+#             "phone_number",]
 
 
+#         extra_kwargs = {
+#             "email": {"read_only": True},     # لا يعدل من هنا (التعديل يحتاج سيرفر تأكيد غالباً)
+#             "username": {"read_only": True},  # إذا حابة نخليه غير قابل للتعديل
+#         }
 
-class UserSerializer(serializers.ModelSerializer):
+############################################################
 
+class MyProfileSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
     following_count = serializers.IntegerField(read_only=True)
-    personal_photo_url = serializers.SerializerMethodField()
+   # posts = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id",
-
-
-            "first_name",
-            "last_name",
             "username",
-            "email",
-            "age",
-            "gender",
-            "bio",
-            "specialization",
-
-
-            "phone_number",
-            "links",
-
-
-            "personal_photo",
             "personal_photo_url",
-
-
             "followers_count",
             "following_count",
+            "specialization",
+            "bio",
+            "links",
+           # "posts",
         ]
 
-        extra_kwargs = {
-            "email": {"read_only": True},     # لا يعدل من هنا (التعديل يحتاج سيرفر تأكيد غالباً)
-            "username": {"read_only": True},  # إذا حابة نخليه غير قابل للتعديل
-        }
-
-    def get_personal_photo_url(self, obj):
         """إرجاع رابط الصورة الكامل"""
-        try:
-            request = self.context.get("request")
-            if obj.personal_photo and hasattr(obj.personal_photo, 'url'):
-                return request.build_absolute_uri(obj.personal_photo.url)
-            return None
-        except:
-            return None
-#######################################################################################################
-class UserUpdateSerializer(serializers.ModelSerializer):
+    def get_personal_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+            return request.build_absolute_uri(obj.personal_photo.url)
+        return None
+    
+#  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
+    #def get_posts(self, obj):
+        # جلب كل منشورات المستخدم
+       # posts = Post.objects.filter(owner=obj).order_by("-created_at")
+      #  return PostSerializer(posts, many=True, context=self.context).data 
+    
+########################################################################
+
+class OtherUserProfileSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
+    followers_count = serializers.IntegerField(read_only=True)
+   # posts = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "personal_photo_url",
+            "followers_count",
+            "specialization",
+            "bio",
+            "links",
+           # "posts",
+        ]
+
+        """إرجاع رابط الصورة الكامل"""
+    def get_personal_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+            return request.build_absolute_uri(obj.personal_photo.url)
+        return None
+
+#  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
+   # def get_posts(self, obj):
+        # جلب كل منشورات المستخدم
+      #  posts = Post.objects.filter(owner=obj).order_by("-created_at")
+      #  return PostSerializer(posts, many=True, context=self.context).data 
+   
+
+########################################################################
+
+class UserPhotoUpdateSerializer(serializers.ModelSerializer):
+     class Meta:
+         model=User
+         fields=['personal_photo']
+         extra_kwargs={
+             'personal_photo':{'required':False, 'allow_null': True},
+             
+         }
+########################################################################
+class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model=User
-        fields=[ 'personal_photo','bio','links','specialization']
+        fields=['bio','links','specialization']
         extra_kwargs={
-            'personal_photo':{'required':False},
             'bio':{'required':False},
             'links':{'required':False},
             'specialization':{'required':False}
         }
-#####################################################################################################
-User = get_user_model()
+
+###############################################################
+
 class UsernameUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model=User
-        fields=['username']
-    def validate_username(self,value):
-            # 1) التحقق من وجوده مسبقاً
-        if User.objects.filter(username=value).exists():
+        model = User
+        fields = ["username"]
+
+    def validate_username(self, value):
+
+        # 1) Check if taken by another user
+        if User.objects.filter(username=value).exclude(id=self.instance.id).exists():
             raise serializers.ValidationError("This username is already taken.")
-                # 2) تشغيل الـ regex validator الموجود في الموديل
+
+        # 2) Run model regex validator
         try:
             User.username.field.run_validators(value)
         except Exception as e:
@@ -184,12 +242,13 @@ class UsernameUpdateSerializer(serializers.ModelSerializer):
         instance.username = validated_data["username"]
         instance.save()
         return instance
-#######################################################################################################
-User = get_user_model()
+    
+############################################################
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
+    confirm_new_password = serializers.CharField(write_only=True)
 
     def validate(self, data):
         user = self.context["request"].user
@@ -200,21 +259,38 @@ class ChangePasswordSerializer(serializers.Serializer):
 
         # 2) التأكد من أن الباسورد الجديد غير القديم
         if data["old_password"] == data["new_password"]:
-            raise serializers.ValidationError({"new_password": "New password must be different."})
+            raise serializers.ValidationError({"new_password": "New password must be different from old password."})
 
         # 3) التحقق من طول كلمة السر الجديدة
         if len(data["new_password"]) < 8:
             raise serializers.ValidationError({"new_password": "Password must be at least 8 characters long."})
 
-        return data
+        # 4) التأكد من تطابق كلمة السر الجديدة مع التأكيد
+        if data["new_password"] != data["confirm_new_password"]:
+            raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
 
+        return data
+    
     def save(self, **kwargs):
         user = self.context["request"].user
         new_password = self.validated_data["new_password"]
 
         user.set_password(new_password)
         user.save()
-        return user
-#############################################################################################################################
 
+        return user
+##################################################################################    
+class SettingsProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "username",
+            "email",
+        ]
+
+        # كل الحقول للعرض فقط
+        extra_kwargs = {
+            "username": {"read_only": True},
+            "email": {"read_only": True},
+        }
 

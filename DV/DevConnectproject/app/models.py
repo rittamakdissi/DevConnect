@@ -46,7 +46,8 @@ class User(AbstractUser):
     specialization = models.CharField(max_length=200, blank=True, null=True)
     bio = models.TextField(blank=True, null=True)
     personal_photo = models.ImageField(upload_to="avatars/", blank=True, null=True)
-    links = models.JSONField(default=dict, blank=True, null=True)
+    links = models.TextField(blank=True, null=True)
+    #links = models.JSONField(default=dict, blank=True, null=True)
     #updated_at = models.DateTimeField(auto_now=True)
     #created_at = models.DateTimeField(auto_now_add=True)
     gender = models.CharField(
@@ -60,11 +61,12 @@ class User(AbstractUser):
 
     @property
     def followers_count(self):
-       return self.followers.count()
+      return self.followers_set.count()
 
     @property
     def following_count(self):
-      return self.following.count()
+      return self.following_set.count()
+
     
 
     def __str__(self):
