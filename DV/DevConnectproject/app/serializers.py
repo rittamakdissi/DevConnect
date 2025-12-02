@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from .models import Follow
 
 
 User = get_user_model()
@@ -102,30 +103,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
-################################################################################################   
-#class UserSerializer(serializers.ModelSerializer):
-#       هاد ما بقا الو فائدة رح علقو بس ما رح نحذفو هلق
-#     followers_count = serializers.IntegerField(read_only=True)
-#     following_count = serializers.IntegerField(read_only=True)
-#     personal_photo_url = serializers.SerializerMethodField()
 
-#     class Meta:
-#         model = User
-#         fields = [
-#             "id",
-#             "first_name",
-#             "last_name",
-#             "username",
-#             "email",
-#             "age",
-#             "gender",
-#             "phone_number",]
-
-
-#         extra_kwargs = {
-#             "email": {"read_only": True},     # لا يعدل من هنا (التعديل يحتاج سيرفر تأكيد غالباً)
-#             "username": {"read_only": True},  # إذا حابة نخليه غير قابل للتعديل
-#         }
 
 ############################################################
 
@@ -133,7 +111,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
     following_count = serializers.IntegerField(read_only=True)
-   # posts = serializers.SerializerMethodField()
+    # posts = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -146,7 +124,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
             "specialization",
             "bio",
             "links",
-           # "posts",
+            # "posts",
         ]
 
         """إرجاع رابط الصورة الكامل"""
@@ -155,13 +133,13 @@ class MyProfileSerializer(serializers.ModelSerializer):
         if obj.personal_photo and hasattr(obj.personal_photo, "url"):
             return request.build_absolute_uri(obj.personal_photo.url)
         return None
-    
+
 #  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
     #def get_posts(self, obj):
         # جلب كل منشورات المستخدم
        # posts = Post.objects.filter(owner=obj).order_by("-created_at")
-      #  return PostSerializer(posts, many=True, context=self.context).data 
-    
+      #  return PostSerializer(posts, many=True, context=self.context).data
+
 ########################################################################
 
 class OtherUserProfileSerializer(serializers.ModelSerializer):
@@ -193,8 +171,8 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
    # def get_posts(self, obj):
         # جلب كل منشورات المستخدم
       #  posts = Post.objects.filter(owner=obj).order_by("-created_at")
-      #  return PostSerializer(posts, many=True, context=self.context).data 
-   
+      #  return PostSerializer(posts, many=True, context=self.context).data
+
 
 ########################################################################
 
@@ -204,7 +182,7 @@ class UserPhotoUpdateSerializer(serializers.ModelSerializer):
          fields=['personal_photo']
          extra_kwargs={
              'personal_photo':{'required':False, 'allow_null': True},
-             
+
          }
 ########################################################################
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
@@ -242,7 +220,7 @@ class UsernameUpdateSerializer(serializers.ModelSerializer):
         instance.username = validated_data["username"]
         instance.save()
         return instance
-    
+
 ############################################################
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -270,7 +248,7 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
 
         return data
-    
+
     def save(self, **kwargs):
         user = self.context["request"].user
         new_password = self.validated_data["new_password"]
@@ -279,7 +257,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.save()
 
         return user
-##################################################################################    
+##################################################################################
 class SettingsProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -293,4 +271,37 @@ class SettingsProfileSerializer(serializers.ModelSerializer):
             "username": {"read_only": True},
             "email": {"read_only": True},
         }
+#####################################################################################################
+class UserFollowListSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
 
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "personal_photo_url",
+        ]
+
+    def get_personal_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+            return request.build_absolute_uri(obj.personal_photo.url)
+        return None
+
+
+
+
+class FollowersListSerializer(serializers.ModelSerializer):
+    user = UserFollowListSerializer(source="follower", read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ["user", "created_at"]
+
+class FollowingListSerializer(serializers.ModelSerializer):
+    user = UserFollowListSerializer(source="following", read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ["user", "created_at"]

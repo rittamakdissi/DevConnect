@@ -1,12 +1,12 @@
 from django.contrib.auth import get_user_model
 from .serializers import RegisterSerializer
 from django.http import Http404
-from rest_framework import status 
+from rest_framework import status
 from rest_framework.request import Request
-from rest_framework.response import Response  
+from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import * 
-from .serializers import * 
+from .models import *
+from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
@@ -32,8 +32,8 @@ class RegisterView(APIView):
 
 
 
-# Login  
-"""   هي لازم اتاكد منها من الشات لانو ما بظن صح 
+# Login
+"""   هي لازم اتاكد منها من الشات لانو ما بظن صح
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
@@ -53,7 +53,7 @@ class MyProfileView(APIView):
 
 
 # OtherUserProfile
-""" شغال بس متل فكرة يلي قبلو لازم نشيل التعليق عن اسطر البوست"""   
+""" شغال بس متل فكرة يلي قبلو لازم نشيل التعليق عن اسطر البوست"""
 class OtherUserProfileView(APIView):
 
     def get(self, request, username):
@@ -77,6 +77,11 @@ class OtherUserProfileView(APIView):
 #تعديل معلومات المستخدم من اختصاص و بيو و روابط
 class UpdateUserInfoView(APIView):
     """شغالة"""
+    def get(self, request):
+        user=request.user
+        serializer = UserInfoUpdateSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def patch(self, request):
         user = request.user
         # نمرّر partial=True لأنه تعديل جزئي
@@ -91,9 +96,13 @@ class UpdateUserInfoView(APIView):
 #تعديل الصورة الشخصية أو حذفها
 class UpdateUserPhotoView(APIView):
     """الحذف شغال بس ما عم اعرف شو صياغة الصورة يلي بدي مرقا مشان جرب التعديل"""
+    def get(self, request):
+        user=request.user
+        serializer = UserPhotoUpdateSerializer(user, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def put(self, request):
         user = request.user
-
         serializer = UserPhotoUpdateSerializer(
             user,
             data=request.data,
@@ -117,6 +126,11 @@ class UpdateUserPhotoView(APIView):
 # تعديل اسم المستخدم
 class UserNameChangeView(APIView):
     """شغالة"""
+    def get(self, request):
+        user=request.user
+        serializer = UsernameUpdateSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def put(self, request):
         user = request.user
         serializer = UsernameUpdateSerializer(user,data=request.data)
@@ -125,6 +139,7 @@ class UserNameChangeView(APIView):
             return Response({"detail": "username updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #permission_classes = [IsAuthenticated]
+
 
 
 
