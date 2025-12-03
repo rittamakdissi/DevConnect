@@ -118,7 +118,7 @@ class UpdateUserPhotoView(APIView):
             else:
                 serializer.save()
 
-            return Response({"detail": "Photo updated successfully"}, status=status.HTTP_200_OK)
+            return Response({"detail": "Photo updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -142,7 +142,7 @@ class UserNameChangeView(APIView):
 
 
 
-
+# إعدادات الملف الشخصي يعني عرض اسم المستخدم وايميلو
 class SettingsView(APIView):
     """  شغالة"""
     def get(self, request):
@@ -152,6 +152,7 @@ class SettingsView(APIView):
     #permission_classes = [IsAuthenticated]
 
 
+# تغيير كلمة المرور
 class ChangePasswordView(APIView):
     """ شغالة"""
     def put(self, request):
@@ -162,3 +163,102 @@ class ChangePasswordView(APIView):
             return Response({"detail": "Password changed successfully"},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #permission_classes = [IsAuthenticated]
+
+
+
+# عرض قائمة المتابعين لمستخدم معين
+class FollowersListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        # المستخدم الذي نريد معرفة متابعيه
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=404)
+
+        followers = User.objects.filter(following_set__following=user)
+
+        serializer = UserMiniSerializer(
+            followers,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data, status=200)
+    #permission_classes = [IsAuthenticated]
+
+
+
+
+# عرض قائمة المتابعين الذين يتابعهم مستخدم معين
+class FollowingListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request,user_id):
+        # المستخدم الذي نريد معرفة من يتابعه
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=404)
+
+        following = User.objects.filter(followers_set__follower=user)
+
+        serializer = UserMiniSerializer(
+            following,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data, status=200)
+    #permission_classes = [IsAuthenticated]
+
+
+
+# متابعة مستخدم معين
+class FollowView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id):
+        """المستخدم الحالي يتابع user_id"""
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=404)
+
+        serializer = FollowSerializer(
+            data={"following": target_user.id},
+            context={"request": request},
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"detail": "User followed successfully"}, status=201)
+
+        return Response(serializer.errors, status=400)
+    #permission_classes = [IsAuthenticated]
+
+
+
+# إلغاء متابعة مستخدم معين
+class UnfollowView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, user_id):
+        follower = request.user
+
+        try:
+            following = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=404)
+
+        follow_obj = Follow.objects.filter(follower=follower, following=following).first()
+
+        if not follow_obj:
+            return Response({"detail": "You are not following this user."}, status=400)
+
+        follow_obj.delete()
+        return Response({"detail": "Unfollowed successfully"}, status=200)
+    #permission_classes = [IsAuthenticated]
+
+

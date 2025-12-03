@@ -188,7 +188,7 @@ class UserPhotoUpdateSerializer(serializers.ModelSerializer):
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model=User
-        fields=['bio','links','specialization']
+        fields=['specialization','bio','links']
         extra_kwargs={
             'bio':{'required':False},
             'links':{'required':False},
@@ -268,11 +268,11 @@ class SettingsProfileSerializer(serializers.ModelSerializer):
 
         # كل الحقول للعرض فقط
         extra_kwargs = {
-            "username": {"read_only": True},
+            #"username": {"read_only": True},
             "email": {"read_only": True},
         }
 #####################################################################################################
-class UserFollowListSerializer(serializers.ModelSerializer):
+class UserMiniSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -289,19 +289,42 @@ class UserFollowListSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.personal_photo.url)
         return None
 
-
-
-
+#####################################################################################################
 class FollowersListSerializer(serializers.ModelSerializer):
-    user = UserFollowListSerializer(source="follower", read_only=True)
+    user = UserMiniSerializer(source="follower", read_only=True)
 
     class Meta:
         model = Follow
         fields = ["user", "created_at"]
-
+#####################################################################################################
 class FollowingListSerializer(serializers.ModelSerializer):
-    user = UserFollowListSerializer(source="following", read_only=True)
+    user = UserMiniSerializer(source="following", read_only=True)
 
     class Meta:
         model = Follow
         fields = ["user", "created_at"]
+#####################################################################################################
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = ["id", "follower", "following", "created_at"]
+        read_only_fields = ["id", "follower", "created_at"]
+
+    def validate(self, data):
+        follower = self.context["request"].user
+        following = data["following"]
+
+        # منع متابعة نفسك
+        if follower == following:
+            raise serializers.ValidationError("You cannot follow yourself.")
+
+        # منع التكرار
+        if Follow.objects.filter(follower=follower, following=following).exists():
+            raise serializers.ValidationError("You already follow this user.")
+
+        return data
+
+    def create(self, validated_data):
+        follower = self.context["request"].user
+        following = validated_data["following"]
+        return Follow.objects.create(follower=follower, following=following)

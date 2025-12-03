@@ -8,7 +8,7 @@ urlpatterns = [
     # My Profile 
     path("profile/me/", MyProfileView.as_view(), name="my-profile"),
     
-    # Other user's profile (must be LAST to prevent conflicts)
+    # Other user's profile 
     path("profile/<str:username>/", OtherUserProfileView.as_view(), name="other-user-profile"),
 
     # Update user info
@@ -25,5 +25,18 @@ urlpatterns = [
 
     # Change password
     path("profile/me/settings/change-password/", ChangePasswordView.as_view(), name="change-password"),
+
+    #show followers list   
+    path("user/<int:user_id>/followers/", FollowersListView.as_view()),
+
+    #show following list  
+    path("user/<int:user_id>/following/", FollowingListView.as_view()),
+    
+    # Follow a user
+    path("follow/<int:user_id>/", FollowView.as_view(), name="follow"),
+
+    # Unfollow a user
+    path("unfollow/<int:user_id>/", UnfollowView.as_view(), name="unfollow"),
+
 ]
     
