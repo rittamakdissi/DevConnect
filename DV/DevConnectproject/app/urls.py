@@ -14,7 +14,7 @@ urlpatterns = [
     # Update user info
     path("profile/me/update/info/", UpdateUserInfoView.as_view()),
 
-    # Update photo
+    # Update photo / Or remove photo
     path("profile/me/update/photo/", UpdateUserPhotoView.as_view()),
 
     # Settings screen
@@ -38,5 +38,15 @@ urlpatterns = [
     # Unfollow a user
     path("unfollow/<int:user_id>/", UnfollowView.as_view(), name="unfollow"),
 
+    # React to a post
+    path("posts/<int:post_id>/react/", ReactToPostView.as_view(), name="react-post"),
+
+    # Remove reaction from a post
+    path("posts/<int:post_id>/react/remove/", RemoveReactionView.as_view(), name="remove-reaction"),
+
+    # List users who reacted to a post with a specific reaction
+    path("posts/<int:post_id>/reactions/<str:reaction_type>/",ReactionUsersListView.as_view(),name="reaction-users"),
 ]
+
+
     

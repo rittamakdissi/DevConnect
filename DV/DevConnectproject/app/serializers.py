@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
-from .models import Follow
+from .models import *
 
 
 User = get_user_model()
@@ -105,7 +105,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-############################################################
+#######################################################################################################33
 
 class MyProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
@@ -140,7 +140,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
        # posts = Post.objects.filter(owner=obj).order_by("-created_at")
       #  return PostSerializer(posts, many=True, context=self.context).data
 
-########################################################################
+########################################################################################################33
 
 class OtherUserProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
@@ -174,7 +174,7 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
       #  return PostSerializer(posts, many=True, context=self.context).data
 
 
-########################################################################
+#########################################################################################################
 
 class UserPhotoUpdateSerializer(serializers.ModelSerializer):
      class Meta:
@@ -184,7 +184,7 @@ class UserPhotoUpdateSerializer(serializers.ModelSerializer):
              'personal_photo':{'required':False, 'allow_null': True},
 
          }
-########################################################################
+####################################################################################################
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model=User
@@ -195,7 +195,7 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
             'specialization':{'required':False}
         }
 
-###############################################################
+#################################################################################################
 
 class UsernameUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -221,7 +221,7 @@ class UsernameUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-############################################################
+###################################################################################################
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
@@ -257,7 +257,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.save()
 
         return user
-##################################################################################
+###############################################################################################################
 class SettingsProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -323,8 +323,45 @@ class FollowSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You already follow this user.")
 
         return data
-
+    
     def create(self, validated_data):
         follower = self.context["request"].user
         following = validated_data["following"]
         return Follow.objects.create(follower=follower, following=following)
+#####################################################################################################
+
+class ReactionSerializer(serializers.ModelSerializer):
+    reaction_type = serializers.ChoiceField(choices=Reaction.REACTION_TYPES)
+
+    class Meta:
+        model = Reaction
+        fields = ["id", "user", "post", "reaction_type", "created_at"]
+        read_only_fields = ["id", "user", "post", "created_at"]
+
+    def validate(self, data):
+        user = self.context['request'].user
+        post = self.context['post']
+
+        # إذا المستخدم عمل تفاعل قبل → سيتم التحديث وليس الإنشاء
+        return data
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        post = self.context['post']
+        reaction_type = validated_data["reaction_type"]
+
+        # هل يوجد تفاعل سابق؟
+        existing = Reaction.objects.filter(user=user, post=post).first()
+
+        if existing:
+            #  تحديث التفاعل بدل إنشاء واحد جديد
+            existing.reaction_type = reaction_type
+            existing.save()
+            return existing
+
+        #  إنشاء تفاعل جديد
+        return Reaction.objects.create(
+            user=user,
+            post=post,
+            reaction_type=reaction_type
+        )

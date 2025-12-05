@@ -10,7 +10,7 @@ from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
-
+from rest_framework.parsers import MultiPartParser, FormParser
 
 
 User = get_user_model()
@@ -61,7 +61,7 @@ class OtherUserProfileView(APIView):
             user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response(
-                {"detail": "User not found."},
+                {"message": "User not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -88,39 +88,46 @@ class UpdateUserInfoView(APIView):
         serializer = UserInfoUpdateSerializer(user,data=request.data,partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail": "User info updated successfully","data":serializer.data},status=status.HTTP_200_OK)
+            return Response({"message": "User info updated successfully","data":serializer.data},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #permission_classes = [IsAuthenticated]
 
 
 #تعديل الصورة الشخصية أو حذفها
 class UpdateUserPhotoView(APIView):
-    """الحذف شغال بس ما عم اعرف شو صياغة الصورة يلي بدي مرقا مشان جرب التعديل"""
-    def get(self, request):
-        user=request.user
-        serializer = UserPhotoUpdateSerializer(user, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    """شغالة"""
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsAuthenticated]
 
     def put(self, request):
         user = request.user
+
         serializer = UserPhotoUpdateSerializer(
             user,
             data=request.data,
-            partial=True
+            partial=True,
+            context={"request": request}
         )
 
         if serializer.is_valid():
-            # إذا بدك تحذفي الصورة: personal_photo = null
-            if request.data.get("personal_photo") is None:
-                user.personal_photo.delete(save=True)
-                return Response({"detail": "Photo deleted successfully"}, status=status.HTTP_200_OK)
+            serializer.save()
+            return Response({
+                "detail": "Photo updated successfully",
+                "data": serializer.data
+            }, status=200)
 
-            else:
-                serializer.save()
+        return Response(serializer.errors, status=400)
 
-            return Response({"detail": "Photo updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
+    # 🗑 حذف الصورة الشخصية
+    def delete(self, request):
+        user = request.user
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if user.personal_photo:
+            user.personal_photo.delete(save=True)
+            return Response({"detail": "Photo deleted successfully"}, status=200)
+
+        return Response({"detail": "No photo to delete"}, status=400)
+
 
 
 # تعديل اسم المستخدم
@@ -136,7 +143,7 @@ class UserNameChangeView(APIView):
         serializer = UsernameUpdateSerializer(user,data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail": "username updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
+            return Response({"message": "username updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #permission_classes = [IsAuthenticated]
 
@@ -160,7 +167,7 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(user,data=request.data,context={"request": request})
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail": "Password changed successfully"},status=status.HTTP_200_OK)
+            return Response({"message": "Password changed successfully"},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     #permission_classes = [IsAuthenticated]
 
@@ -168,6 +175,7 @@ class ChangePasswordView(APIView):
 
 # عرض قائمة المتابعين لمستخدم معين
 class FollowersListView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, user_id):
@@ -175,7 +183,7 @@ class FollowersListView(APIView):
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({"detail": "User not found."}, status=404)
+            return Response({"message": "User not found."}, status=404)
 
         followers = User.objects.filter(following_set__following=user)
 
@@ -193,6 +201,7 @@ class FollowersListView(APIView):
 
 # عرض قائمة المتابعين الذين يتابعهم مستخدم معين
 class FollowingListView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request,user_id):
@@ -200,7 +209,7 @@ class FollowingListView(APIView):
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({"detail": "User not found."}, status=404)
+            return Response({"message": "User not found."}, status=404)
 
         following = User.objects.filter(followers_set__follower=user)
 
@@ -217,6 +226,7 @@ class FollowingListView(APIView):
 
 # متابعة مستخدم معين
 class FollowView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, user_id):
@@ -224,7 +234,7 @@ class FollowView(APIView):
         try:
             target_user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({"detail": "User not found"}, status=404)
+            return Response({"message": "User not found"}, status=404)
 
         serializer = FollowSerializer(
             data={"following": target_user.id},
@@ -233,7 +243,7 @@ class FollowView(APIView):
 
         if serializer.is_valid():
             serializer.save()
-            return Response({"detail": "User followed successfully"}, status=201)
+            return Response({"message": "User followed successfully"}, status=201)
 
         return Response(serializer.errors, status=400)
     #permission_classes = [IsAuthenticated]
@@ -242,6 +252,7 @@ class FollowView(APIView):
 
 # إلغاء متابعة مستخدم معين
 class UnfollowView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, user_id):
@@ -250,15 +261,94 @@ class UnfollowView(APIView):
         try:
             following = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({"detail": "User not found"}, status=404)
+            return Response({"message": "User not found"}, status=404)
 
         follow_obj = Follow.objects.filter(follower=follower, following=following).first()
 
         if not follow_obj:
-            return Response({"detail": "You are not following this user."}, status=400)
+            return Response({"message": "You don't actually follow this user."}, status=400)
 
         follow_obj.delete()
-        return Response({"detail": "Unfollowed successfully"}, status=200)
+        return Response({"message": "Unfollowed successfully"}, status=200)
     #permission_classes = [IsAuthenticated]
 
 
+
+
+#لانشاء تفاعل جديد او تغييره في حال كان الشخص عامل تفاعل ما مسبقا
+class ReactToPostView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        # هل البوست موجود؟
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({"message": "Post not found"}, status=404)
+
+        # نمرر post داخل context
+        serializer = ReactionSerializer(
+            data=request.data,
+            context={"request": request, "post": post}
+        )
+
+        if serializer.is_valid():
+            reaction = serializer.save()
+            return Response({
+                "message": "You Reactad successfully",
+                "reaction": ReactionSerializer(reaction).data
+            }, status=200)
+
+        return Response(serializer.errors, status=400)
+
+
+#حذف التفاعل من على منشور معين
+class RemoveReactionView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, post_id):
+        user = request.user
+
+        try:
+            reaction = Reaction.objects.get(user=user, post_id=post_id)
+        except Reaction.DoesNotExist:
+            return Response({"message": "No reaction to remove"}, status=404)
+
+        reaction.delete()
+        return Response({"message": "Reaction removed"}, status=200)
+
+
+# عرض قائمة المستخدمين الذين عملوا تفاعل معين على منشور معين
+class ReactionUsersListView(APIView):
+    """شغالة بس لازم تنربط لاحقا مع البوست"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, post_id, reaction_type):
+        # تحقق من وجود البوست
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({"message": "Post not found"}, status=404)
+
+        # تحقق من reaction_type
+        valid_types = dict(Reaction.REACTION_TYPES).keys()
+        if reaction_type not in valid_types:
+            return Response({"message": "Invalid reaction type"}, status=400)
+
+        # جلب المستخدمين الذين عملوا هذا التفاعل
+        reactions = Reaction.objects.filter(
+            post=post,
+            reaction_type=reaction_type
+        )
+
+        users = [reaction.user for reaction in reactions]
+
+        serializer = UserMiniSerializer(
+            users,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data, status=200)
