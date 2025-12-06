@@ -323,7 +323,7 @@ class FollowSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You already follow this user.")
 
         return data
-    
+
     def create(self, validated_data):
         follower = self.context["request"].user
         following = validated_data["following"]
@@ -365,3 +365,87 @@ class ReactionSerializer(serializers.ModelSerializer):
             post=post,
             reaction_type=reaction_type
         )
+####################################################################################################
+class CommentReactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentReaction
+        fields = ["id", "reaction_type", "created_at"]
+
+#لعرض التعليق +الردود و التفاعلات
+class CommentSerializer(serializers.ModelSerializer):
+    user_username = serializers.CharField(source="user.username", read_only=True)
+    user_photo_url = serializers.SerializerMethodField()
+    useful_count = serializers.IntegerField(read_only=True)
+    not_useful_count = serializers.IntegerField(read_only=True)
+    replies_count = serializers.IntegerField(read_only=True)
+    replies = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = [
+            "id",
+            "content",
+            "created_at",
+            "user_username",
+            "user_photo_url",
+            "useful_count",
+            "not_useful_count",
+            "replies_count",
+            "replies",
+        ]
+
+    def get_user_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.user.personal_photo:
+            return request.build_absolute_uri(obj.user.personal_photo.url)
+        return None
+
+    def get_replies(self, obj):
+        """عرض الردود فقط (مستوى واحد)"""
+        replies = obj.replies.all().order_by("created_at")
+        return CommentSerializer(replies, many=True, context=self.context).data
+
+
+# لانشاء تعليق او رد
+class CommentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ["content", "parent"]
+
+    def validate(self, data):
+        parent = data.get("parent")
+        if parent and parent.parent:
+            raise serializers.ValidationError("Replies can only be one level deep.")
+        return data
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        post = self.context["post"]
+        return Comment.objects.create(user=user, post=post, **validated_data)
+
+# لاضافة  او تعديل على التفاعل الخاص بالتعليق
+
+class CommentReactionCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommentReaction
+        fields = ["reaction_type"]
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        comment = self.context["comment"]
+        reaction_type = validated_data["reaction_type"]
+
+        # تعديل إذا موجود، إنشاء إذا جديد
+        reaction, created = CommentReaction.objects.update_or_create(
+            user=user,
+            comment=comment,
+            defaults={"reaction_type": reaction_type}
+        )
+        return reaction
+
+# تعديل التعليق او الرد
+class CommentUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ["content"]
+

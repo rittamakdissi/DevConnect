@@ -352,3 +352,89 @@ class ReactionUsersListView(APIView):
         )
 
         return Response(serializer.data, status=200)
+
+################################################################################
+
+#Get all comments for a post + filtering (asc/desc)
+class PostCommentsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, post_id):
+        order = request.GET.get("ordering", "desc")
+        post = get_object_or_404(Post, id=post_id)
+
+        if order == "asc":
+            comments = post.comments.filter(parent=None).order_by("created_at")
+        else:
+            comments = post.comments.filter(parent=None).order_by("-created_at")
+
+        serializer = CommentSerializer(comments, many=True, context={"request": request})
+        return Response(serializer.data, status=200)
+#Create comment OR reply
+class CommentCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+
+        serializer = CommentCreateSerializer(
+            data=request.data,
+            context={"request": request, "post": post}
+        )
+
+        if serializer.is_valid():
+            comment = serializer.save()
+            return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
+
+        return Response(serializer.errors, status=400)
+#Add or change reaction on comment
+class CommentReactionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+
+        serializer = CommentReactionCreateSerializer(
+            data=request.data,
+            context={"request": request, "comment": comment},
+        )
+
+        if serializer.is_valid():
+            reaction = serializer.save()
+            return Response(
+                {"detail": "Reaction updated.", "data": CommentReactionSerializer(reaction).data},
+                status=200,
+            )
+
+        return Response(serializer.errors, status=400)
+#تعديل تعليق و الحذف 
+
+class CommentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+
+        # مستخدم غير صاحب التعليق → رفض
+        if comment.user != request.user:
+            return Response({"detail": "You are not allowed to edit this comment."}, status=403)
+
+        serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "detail": "Comment updated successfully",
+                "data": CommentSerializer(comment, context={"request": request}).data
+            }, status=200)
+
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+
+        if comment.user != request.user:
+            return Response({"detail": "You are not allowed to delete this comment."}, status=403)
+
+        comment.delete()
+        return Response({"detail": "Comment deleted successfully"}, status=200)
+

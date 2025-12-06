@@ -5,10 +5,10 @@ urlpatterns = [
     # Register
     path("register/", RegisterView.as_view(), name="register"),
 
-    # My Profile 
+    # My Profile
     path("profile/me/", MyProfileView.as_view(), name="my-profile"),
-    
-    # Other user's profile 
+
+    # Other user's profile
     path("profile/<str:username>/", OtherUserProfileView.as_view(), name="other-user-profile"),
 
     # Update user info
@@ -26,12 +26,12 @@ urlpatterns = [
     # Change password
     path("profile/me/settings/change-password/", ChangePasswordView.as_view(), name="change-password"),
 
-    #show followers list   
+    #show followers list
     path("user/<int:user_id>/followers/", FollowersListView.as_view()),
 
-    #show following list  
+    #show following list
     path("user/<int:user_id>/following/", FollowingListView.as_view()),
-    
+
     # Follow a user
     path("follow/<int:user_id>/", FollowView.as_view(), name="follow"),
 
@@ -46,7 +46,14 @@ urlpatterns = [
 
     # List users who reacted to a post with a specific reaction
     path("posts/<int:post_id>/reactions/<str:reaction_type>/",ReactionUsersListView.as_view(),name="reaction-users"),
+    # List comments for a post
+    path("posts/<int:post_id>/comments/", PostCommentsView.as_view()),
+    # Create a comment on a post
+    path("posts/<int:post_id>/comments/create/", CommentCreateView.as_view()),
+    # React to a comment
+    path("comments/<int:comment_id>/react/", CommentReactionView.as_view()),
+    # updata or delete comment
+    path("comments/<int:comment_id>/", CommentDetailView.as_view()),
 ]
 
 
-    
