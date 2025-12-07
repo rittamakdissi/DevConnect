@@ -329,7 +329,6 @@ class FollowSerializer(serializers.ModelSerializer):
         following = validated_data["following"]
         return Follow.objects.create(follower=follower, following=following)
 #####################################################################################################
-
 class ReactionSerializer(serializers.ModelSerializer):
     reaction_type = serializers.ChoiceField(choices=Reaction.REACTION_TYPES)
 
@@ -338,72 +337,66 @@ class ReactionSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "post", "reaction_type", "created_at"]
         read_only_fields = ["id", "user", "post", "created_at"]
 
-    def validate(self, data):
-        user = self.context['request'].user
-        post = self.context['post']
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        post = self.context["post"]
+        new_type = self.validated_data["reaction_type"]
 
-        # إذا المستخدم عمل تفاعل قبل → سيتم التحديث وليس الإنشاء
-        return data
-
-    def create(self, validated_data):
-        user = self.context['request'].user
-        post = self.context['post']
-        reaction_type = validated_data["reaction_type"]
-
-        # هل يوجد تفاعل سابق؟
+        # جلب التفاعل القديم إن وجد
         existing = Reaction.objects.filter(user=user, post=post).first()
 
+        # 1) إذا كان موجود ونفس النوع → احذف التفاعل
+        if existing and existing.reaction_type == new_type:
+            existing.delete()
+            return None   # مهمّ جداً لنعرف بالـ view أنو حذف
+
+        # 2) إذا كان موجود ونوع مختلف → عدّله
         if existing:
-            #  تحديث التفاعل بدل إنشاء واحد جديد
-            existing.reaction_type = reaction_type
+            existing.reaction_type = new_type
             existing.save()
             return existing
 
-        #  إنشاء تفاعل جديد
+        # 3) لا يوجد تفاعل سابق → أنشئ واحد جديد
         return Reaction.objects.create(
             user=user,
             post=post,
-            reaction_type=reaction_type
+            reaction_type=new_type
         )
-####################################################################################################
-class CommentReactionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CommentReaction
-        fields = ["id", "reaction_type", "created_at"]
 
-#لعرض التعليق +الردود و التفاعلات
+####################################################################################################
+
+#لعرض التعليق و الردود و التفاعلات
 class CommentSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source="user.username", read_only=True)
     user_photo_url = serializers.SerializerMethodField()
     useful_count = serializers.IntegerField(read_only=True)
     not_useful_count = serializers.IntegerField(read_only=True)
     replies_count = serializers.IntegerField(read_only=True)
-    replies = serializers.SerializerMethodField()
+    is_reply = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = [
             "id",
+            "user_photo_url",
+            "user_username",
             "content",
             "created_at",
-            "user_username",
-            "user_photo_url",
             "useful_count",
             "not_useful_count",
             "replies_count",
-            "replies",
+            "is_reply",
         ]
+
+
+    def get_is_reply(self, obj):
+     return obj.parent is not None
 
     def get_user_photo_url(self, obj):
         request = self.context.get("request")
         if obj.user.personal_photo:
             return request.build_absolute_uri(obj.user.personal_photo.url)
         return None
-
-    def get_replies(self, obj):
-        """عرض الردود فقط (مستوى واحد)"""
-        replies = obj.replies.all().order_by("created_at")
-        return CommentSerializer(replies, many=True, context=self.context).data
 
 
 # لانشاء تعليق او رد
@@ -413,35 +406,58 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         fields = ["content", "parent"]
 
     def validate(self, data):
+        # التأكد أن الرد ينتمي لنفس البوست
         parent = data.get("parent")
-        if parent and parent.parent:
-            raise serializers.ValidationError("Replies can only be one level deep.")
+        if parent:
+            post = self.context["post"]
+            if parent.post != post:
+                raise serializers.ValidationError("Reply must belong to the same post.")
         return data
 
     def create(self, validated_data):
         user = self.context["request"].user
         post = self.context["post"]
-        return Comment.objects.create(user=user, post=post, **validated_data)
 
-# لاضافة  او تعديل على التفاعل الخاص بالتعليق
+        return Comment.objects.create(
+            user=user,
+            post=post,
+            content=validated_data["content"],
+            parent=validated_data.get("parent")
+        )
 
-class CommentReactionCreateSerializer(serializers.ModelSerializer):
+
+# لاضافة  او تعديل او حذف التفاعل الخاص بالتعليق
+class CommentReactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommentReaction
         fields = ["reaction_type"]
 
-    def create(self, validated_data):
+    def save(self, **kwargs):
         user = self.context["request"].user
         comment = self.context["comment"]
-        reaction_type = validated_data["reaction_type"]
+        new_type = self.validated_data["reaction_type"]
 
-        # تعديل إذا موجود، إنشاء إذا جديد
-        reaction, created = CommentReaction.objects.update_or_create(
+        # التفاعل السابق (إن وجد)
+        existing = CommentReaction.objects.filter(user=user, comment=comment).first()
+
+        # 1) إذا كان موجود ونفس النوع → احذف التفاعل
+        if existing and existing.reaction_type == new_type:
+            existing.delete()
+            return None   # مهم جداً
+
+        # 2) إذا كان موجود ونوع مختلف → عدّل التفاعل
+        if existing:
+            existing.reaction_type = new_type
+            existing.save()
+            return existing
+
+        # 3) لا يوجد تفاعل مسبق → أنشئ واحد جديد
+        return CommentReaction.objects.create(
             user=user,
             comment=comment,
-            defaults={"reaction_type": reaction_type}
+            reaction_type=new_type
         )
-        return reaction
+
 
 # تعديل التعليق او الرد
 class CommentUpdateSerializer(serializers.ModelSerializer):

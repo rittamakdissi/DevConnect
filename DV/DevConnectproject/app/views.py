@@ -272,22 +272,15 @@ class UnfollowView(APIView):
         return Response({"message": "Unfollowed successfully"}, status=200)
     #permission_classes = [IsAuthenticated]
 
+##########################################################################################################
 
-
-
-#لانشاء تفاعل جديد او تغييره في حال كان الشخص عامل تفاعل ما مسبقا
+#لانشاء تفاعل جديد او تغييره او حذفه في حال كان الشخص عامل تفاعل ما مسبقا
 class ReactToPostView(APIView):
-    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
-        # هل البوست موجود؟
-        try:
-            post = Post.objects.get(id=post_id)
-        except Post.DoesNotExist:
-            return Response({"message": "Post not found"}, status=404)
+        post = get_object_or_404(Post, id=post_id)
 
-        # نمرر post داخل context
         serializer = ReactionSerializer(
             data=request.data,
             context={"request": request, "post": post}
@@ -295,29 +288,54 @@ class ReactToPostView(APIView):
 
         if serializer.is_valid():
             reaction = serializer.save()
+
+            # حذف التفاعل (ضغط نفس النوع)
+            if reaction is None:
+                return Response({"message": "Reaction removed."}, status=200)
+
             return Response({
-                "message": "You Reactad successfully",
-                "reaction": ReactionSerializer(reaction).data
+                "message": "Reaction added or updated.",
+                "data": ReactionSerializer(reaction).data
             }, status=200)
 
         return Response(serializer.errors, status=400)
 
 
-#حذف التفاعل من على منشور معين
-class RemoveReactionView(APIView):
-    """شغالة"""
-    permission_classes = [IsAuthenticated]
+# class ReactToPostView(APIView):
+""" هاد الصح ومنحطو بعد ما نعمل البوست"""
+#     permission_classes = [IsAuthenticated]
 
-    def delete(self, request, post_id):
-        user = request.user
+#     def post(self, request, post_id):
+#         post = get_object_or_404(Post, id=post_id)
 
-        try:
-            reaction = Reaction.objects.get(user=user, post_id=post_id)
-        except Reaction.DoesNotExist:
-            return Response({"message": "No reaction to remove"}, status=404)
+#         serializer = ReactionSerializer(
+#             data=request.data,
+#             context={"request": request, "post": post}
+#         )
 
-        reaction.delete()
-        return Response({"message": "Reaction removed"}, status=200)
+#         if serializer.is_valid():
+#             reaction = serializer.save()
+
+#             # بعد كل عملية (إضافة - تعديل - حذف) نجلب البوست مع العدادات
+#             updated_post_data = PostSerializer(post, context={"request": request}).data
+
+#             # حذف التفاعل
+#             if reaction is None:
+#                 return Response({
+#                     "message": "Reaction removed.",
+#                     "post": updated_post_data   # 🔥 البيانات الجديدة مباشرة
+#                 }, status=200)
+
+#             # إضافة / تعديل
+#             return Response({
+#                 "message": "Reaction added or updated.",
+#                 "post": updated_post_data,   # 🔥 البوست بعد التحديث
+#                 "reaction": ReactionSerializer(reaction).data
+#             }, status=200)
+
+#         return Response(serializer.errors, status=400)
+
+
 
 
 # عرض قائمة المستخدمين الذين عملوا تفاعل معين على منشور معين
@@ -355,23 +373,46 @@ class ReactionUsersListView(APIView):
 
 ################################################################################
 
-#Get all comments for a post + filtering (asc/desc)
+#يجلب التعليقات الرئيسية فقط + ترتيب افتراضي حسب الأقدم    
 class PostCommentsView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, post_id):
-        order = request.GET.get("ordering", "desc")
+        ordering = request.GET.get("ordering", "desc")  # الافتراضي  descيعني التعليقات الاجدد بتطلع من فوق
+
         post = get_object_or_404(Post, id=post_id)
 
-        if order == "asc":
-            comments = post.comments.filter(parent=None).order_by("created_at")
+        # نجلب فقط التعليقات الرئيسية
+        comments = post.comments.filter(parent=None)
+
+        if ordering == "desc":
+            comments = comments.order_by("-created_at")
         else:
-            comments = post.comments.filter(parent=None).order_by("-created_at")
+            comments = comments.order_by("created_at")
 
         serializer = CommentSerializer(comments, many=True, context={"request": request})
+        return Response(serializer.data, status=200)  
+
+
+#لجلب ردود تعليق معيّن
+class CommentRepliesView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, comment_id):
+        comment = get_object_or_404(Comment, id=comment_id)
+
+        replies = comment.replies.all().order_by("-created_at")
+
+        serializer = CommentSerializer(replies, many=True, context={"request": request})
         return Response(serializer.data, status=200)
+
+
+
 #Create comment OR reply
 class CommentCreateView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
@@ -387,29 +428,106 @@ class CommentCreateView(APIView):
             return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
 
         return Response(serializer.errors, status=400)
+  #Create comment OR reply
+# class CommentCreateView(APIView):
+""" هاد الصح ومنحطو بعد ما نعمل البوست"""
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, post_id):
+#         post = get_object_or_404(Post, id=post_id)
+
+#         serializer = CommentCreateSerializer(
+#             data=request.data,
+#             context={"request": request, "post": post}
+#         )
+
+#         if serializer.is_valid():
+#             comment = serializer.save()
+
+#             # 🔥 بعد إنشاء التعليق → نجلب البوست مع عدادات التعليقات الجديدة
+#             updated_post_data = PostSerializer(post, context={"request": request}).data
+
+#             return Response({
+#                 "message": "Comment created successfully",
+#                 "comment": CommentSerializer(comment, context={"request": request}).data,
+#                 "post": updated_post_data  # ← البيانات الجديدة + total_comments محدث
+#             }, status=201)
+
+#         return Response(serializer.errors, status=400)
+
+
+
+
+
 #Add or change reaction on comment
 class CommentReactionView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id)
 
-        serializer = CommentReactionCreateSerializer(
+        serializer = CommentReactionSerializer(
             data=request.data,
             context={"request": request, "comment": comment},
         )
 
         if serializer.is_valid():
             reaction = serializer.save()
-            return Response(
-                {"detail": "Reaction updated.", "data": CommentReactionSerializer(reaction).data},
-                status=200,
-            )
+
+            # حالة الحذف (ضغط نفس التفاعل)
+            if reaction is None:
+                return Response({"message": "Reaction removed."}, status=200)
+
+            # إضافة أو تعديل
+            return Response({
+                "message": "Reaction added or updated.",
+                "data": CommentReactionSerializer(reaction).data
+            }, status=200)
 
         return Response(serializer.errors, status=400)
-#تعديل تعليق و الحذف 
+#Add or change reaction on comment
+# class CommentReactionView(APIView):
+""" هاد الصح ومنحطو بعد ما نعمل البوست"""
+#     permission_classes = [IsAuthenticated]
 
+#     def post(self, request, comment_id):
+#         comment = get_object_or_404(Comment, id=comment_id)
+
+#         serializer = CommentReactionSerializer(
+#             data=request.data,
+#             context={"request": request, "comment": comment},
+#         )
+
+#         if serializer.is_valid():
+#             reaction = serializer.save()
+
+#             # 🔥 بعد أي تعديل أو حذف → نعمل serialize للتعليق المحدث
+#             updated_comment_data = CommentSerializer(comment, context={"request": request}).data
+
+#             # ❌ حذف التفاعل (ضغط نفس النوع)
+#             if reaction is None:
+#                 return Response({
+#                     "message": "Reaction removed.",
+#                     "comment": updated_comment_data     # ← العدادات بعد الحذف
+#                 }, status=200)
+
+#             # ✔ إضافة أو تعديل تفاعل
+#             return Response({
+#                 "message": "Reaction added or updated.",
+#                 "reaction": CommentReactionSerializer(reaction).data,
+#                 "comment": updated_comment_data        # ← العدادات بعد التعديل
+#             }, status=200)
+
+#         return Response(serializer.errors, status=400)
+
+
+
+
+
+#تعديل تعليق و الحذف 
 class CommentDetailView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def put(self, request, comment_id):
@@ -417,13 +535,13 @@ class CommentDetailView(APIView):
 
         # مستخدم غير صاحب التعليق → رفض
         if comment.user != request.user:
-            return Response({"detail": "You are not allowed to edit this comment."}, status=403)
+            return Response({"message": "You are not allowed to edit this comment."}, status=403)
 
         serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response({
-                "detail": "Comment updated successfully",
+                "message": "Comment updated successfully",
                 "data": CommentSerializer(comment, context={"request": request}).data
             }, status=200)
 
@@ -433,8 +551,50 @@ class CommentDetailView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
 
         if comment.user != request.user:
-            return Response({"detail": "You are not allowed to delete this comment."}, status=403)
+            return Response({"message": "You are not allowed to delete this comment."}, status=403)
 
         comment.delete()
-        return Response({"detail": "Comment deleted successfully"}, status=200)
+        return Response({"message": "Comment deleted successfully"}, status=200)
+#تعديل تعليق و الحذف 
+# class CommentDetailView(APIView):
+""" هاد الصح ومنحطو بعد ما نعمل البوست"""
+
+#     permission_classes = [IsAuthenticated]
+
+#     def put(self, request, comment_id):
+#         comment = get_object_or_404(Comment, id=comment_id)
+
+#         # مستخدم غير صاحب التعليق → رفض
+#         if comment.user != request.user:
+#             return Response({"message": "You are not allowed to edit this comment."}, status=403)
+
+#         serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
+#         if serializer.is_valid():
+#             serializer.save()
+
+#             # 🔥 نرجّع معلومات التعليق بعد التحديث
+#             updated_comment = CommentSerializer(comment, context={"request": request}).data
+
+#             return Response({
+#                 "message": "Comment updated successfully",
+#                 "comment": updated_comment
+#             }, status=200)
+
+#         return Response(serializer.errors, status=400)
+
+#     def delete(self, request, comment_id):
+#         comment = get_object_or_404(Comment, id=comment_id)
+
+#         if comment.user != request.user:
+#             return Response({"message": "You are not allowed to delete this comment."}, status=403)
+
+#         post = comment.post  # مهم جداً قبل الحذف
+
+#         comment.delete()
+
+#         # 🔥 نرجع عدد التعليقات الجديد مباشرة بعد الحذف
+#         return Response({
+#             "message": "Comment deleted successfully",
+#             "total_comments": post.total_comments
+#         }, status=200)
 

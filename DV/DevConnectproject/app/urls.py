@@ -42,16 +42,23 @@ urlpatterns = [
     path("posts/<int:post_id>/react/", ReactToPostView.as_view(), name="react-post"),
 
     # Remove reaction from a post
-    path("posts/<int:post_id>/react/remove/", RemoveReactionView.as_view(), name="remove-reaction"),
+    # path("posts/<int:post_id>/react/remove/", RemoveReactionView.as_view(), name="remove-reaction"),
 
     # List users who reacted to a post with a specific reaction
     path("posts/<int:post_id>/reactions/<str:reaction_type>/",ReactionUsersListView.as_view(),name="reaction-users"),
+
     # List comments for a post
     path("posts/<int:post_id>/comments/", PostCommentsView.as_view()),
-    # Create a comment on a post
+    
+    #list replies for a comment
+    path("comments/<int:comment_id>/replies/", CommentRepliesView.as_view()),
+
+    # Create a comment/reply on a post
     path("posts/<int:post_id>/comments/create/", CommentCreateView.as_view()),
-    # React to a comment
+
+    # React to a comment/ delete when react again
     path("comments/<int:comment_id>/react/", CommentReactionView.as_view()),
+
     # updata or delete comment
     path("comments/<int:comment_id>/", CommentDetailView.as_view()),
 ]
