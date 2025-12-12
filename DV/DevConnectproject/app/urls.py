@@ -61,6 +61,18 @@ urlpatterns = [
 
     # updata or delete comment
     path("comments/<int:comment_id>/", CommentDetailView.as_view()),
+
+   # Create a post
+    path("posts/create/", CreatePostView.as_view()),
+
+   # path("posts/", PostListView.as_view(), name="posts-list"),
+
+   # عرض منشور واحد
+    path("posts/<int:post_id>/", PostDetailView.as_view(), name="post-detail"),
+
+    # تعديل + حذف
+    path("posts/<int:post_id>/edit/", PostUpdateDeleteView.as_view(), name="post-edit"),
+
 ]
 
 

@@ -88,14 +88,17 @@ class Post(models.Model):
         on_delete=models.CASCADE,
         related_name="posts",
     )
+    #المحتوى النصي
+    content = models.TextField(blank=True, null=True)
 
-    content = models.TextField()
+    # الكود يلي المستخدم رفعو
+    code=models.TextField(blank=True, null=True)
 
     # الوسوم يلي الذكاء رح يولدها
     tags = models.JSONField(default=list, blank=True)
 
     # شرح الذكاء للكود
-    ai_summary = models.TextField(blank=True, null=True)
+    ai_code_summary = models.TextField(blank=True, null=True)
 
     # نص محسّن أو ملخّص يولده الذكاء
     ai_improved = models.TextField(blank=True, null=True)

@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import *
 from .serializers import *
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -41,21 +41,20 @@ class LoginView(TokenObtainPairView):
 
 
 # MyProfile
-""" جاهز بس ضل لمل نضيف البوست سيريالايزر شيل التعليق عن الاسطر مشان يطلعولي المنشورات بهاد ال api"""
 class MyProfileView(APIView):
+    """شغالة"""
     def get(self, request):
         user=request.user
         serializer = MyProfileSerializer(user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
 
 
 
 # OtherUserProfile
-""" شغال بس متل فكرة يلي قبلو لازم نشيل التعليق عن اسطر البوست"""
 class OtherUserProfileView(APIView):
-
+    """شغالة"""
     def get(self, request, username):
         try:
             user = User.objects.get(username=username)
@@ -70,7 +69,7 @@ class OtherUserProfileView(APIView):
             context={"request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
 
 
@@ -118,7 +117,7 @@ class UpdateUserPhotoView(APIView):
 
         return Response(serializer.errors, status=400)
 
-    # 🗑 حذف الصورة الشخصية
+    #  حذف الصورة الشخصية
     def delete(self, request):
         user = request.user
 
@@ -299,21 +298,19 @@ class ReactToPostView(APIView):
             }, status=200)
 
         return Response(serializer.errors, status=400)
-
-
 # class ReactToPostView(APIView):
-""" هاد الصح ومنحطو بعد ما نعمل البوست"""
+#     """ هاد الصح ومنحطو بعد ما نعمل البوست"""
 #     permission_classes = [IsAuthenticated]
 
 #     def post(self, request, post_id):
-#         post = get_object_or_404(Post, id=post_id)
+#          post = get_object_or_404(Post, id=post_id)
 
-#         serializer = ReactionSerializer(
-#             data=request.data,
-#             context={"request": request, "post": post}
-#         )
+#          serializer = ReactionSerializer(
+#              data=request.data,
+#              context={"request": request, "post": post}
+#          )
 
-#         if serializer.is_valid():
+#          if serializer.is_valid():
 #             reaction = serializer.save()
 
 #             # بعد كل عملية (إضافة - تعديل - حذف) نجلب البوست مع العدادات
@@ -333,7 +330,7 @@ class ReactToPostView(APIView):
 #                 "reaction": ReactionSerializer(reaction).data
 #             }, status=200)
 
-#         return Response(serializer.errors, status=400)
+#          return Response(serializer.errors, status=400)
 
 
 
@@ -598,3 +595,116 @@ class CommentDetailView(APIView):
 #             "total_comments": post.total_comments
 #         }, status=200)
 
+##########################################################################################
+class CreatePostView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        serializer = PostCreateSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            post = serializer.save()
+
+            # أعرض البوست بعد الحفظ
+            return Response({
+                "message": "Post created successfully",
+                "post": PostCreateSerializer(post, context={"request": request}).data
+            }, status=201)
+
+        return Response(serializer.errors, status=400)
+
+
+#عرض منشور واحد
+class PostDetailView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        serializer = PostSerializer(post, context={"request": request})
+        return Response(serializer.data, status=200)
+    
+
+# class PostListView(ListAPIView):
+#     serializer_class = PostSerializer
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+
+#     def get_queryset(self):
+#         queryset = Post.objects.all().order_by("-created_at")
+
+#         # فلترة حسب النوع
+#         post_type = self.request.GET.get("type")
+#         if post_type:
+#             queryset = queryset.filter(post_type=post_type)
+
+#         # فلترة حسب التاغ
+#         tag = self.request.GET.get("tag")
+#         if tag:
+#             queryset = queryset.filter(tags__icontains=tag)
+
+#         return queryset
+
+
+
+#تعديل المنشور او حذفه
+class PostUpdateDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def patch(self, request, post_id):
+        """تعديل البوست (نص + كود + صور إضافة/حذف)"""
+        post = get_object_or_404(Post, id=post_id)
+
+        if post.user != request.user:
+            return Response({"detail": "You cannot edit this post."}, status=403)
+
+        serializer = PostUpdateSerializer(
+            post,
+            data=request.data,
+            partial=True,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            post = serializer.save()
+            return Response({
+                "message": "Post updated successfully",
+                "post": PostSerializer(post, context={"request": request}).data
+            }, status=200)
+
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, post_id):
+        """حذف البوست"""
+        post = get_object_or_404(Post, id=post_id)
+
+        if post.user != request.user:
+            return Response({"detail": "You cannot delete this post."}, status=403)
+
+        post.delete()
+        return Response({"message": "Post deleted successfully"}, status=200)
+    
+    
+# class PostListView(ListAPIView):
+#     serializer_class = PostSerializer
+#     permission_classes = [IsAuthenticatedOrReadOnly]
+
+#     def get_queryset(self):
+#         queryset = Post.objects.all().order_by("-created_at")
+
+#         # فلترة حسب النوع
+#         post_type = self.request.GET.get("type")
+#         if post_type:
+#             queryset = queryset.filter(post_type=post_type)
+
+#         # فلترة حسب التاغ
+#         tag = self.request.GET.get("tag")
+#         if tag:
+#             queryset = queryset.filter(tags__icontains=tag)
+
+#         return queryset

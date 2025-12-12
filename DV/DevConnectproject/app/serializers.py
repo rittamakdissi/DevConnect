@@ -2,7 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from .models import *
-
+from django.db import transaction
+from django.conf import settings
 
 User = get_user_model()
 
@@ -111,7 +112,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
     following_count = serializers.IntegerField(read_only=True)
-    # posts = serializers.SerializerMethodField()
+    posts = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -124,7 +125,7 @@ class MyProfileSerializer(serializers.ModelSerializer):
             "specialization",
             "bio",
             "links",
-            # "posts",
+            "posts",
         ]
 
         """إرجاع رابط الصورة الكامل"""
@@ -134,18 +135,17 @@ class MyProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.personal_photo.url)
         return None
 
-#  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
-    #def get_posts(self, obj):
-        # جلب كل منشورات المستخدم
-       # posts = Post.objects.filter(owner=obj).order_by("-created_at")
-      #  return PostSerializer(posts, many=True, context=self.context).data
+    def get_posts(self, obj):
+       # جلب كل منشورات المستخدم
+        posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
+        return PostSerializer(posts, many=True, context=self.context).data
 
 ########################################################################################################33
 
 class OtherUserProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
-   # posts = serializers.SerializerMethodField()
+    posts = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -157,7 +157,7 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
             "specialization",
             "bio",
             "links",
-           # "posts",
+            "posts",
         ]
 
         """إرجاع رابط الصورة الكامل"""
@@ -168,10 +168,13 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
         return None
 
 #  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
-   # def get_posts(self, obj):
+    def get_posts(self, obj):
         # جلب كل منشورات المستخدم
       #  posts = Post.objects.filter(owner=obj).order_by("-created_at")
       #  return PostSerializer(posts, many=True, context=self.context).data
+        posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
+        return PostSerializer(posts, many=True, context=self.context).data
+
 
 
 #########################################################################################################
@@ -296,14 +299,16 @@ class FollowersListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = ["user", "created_at"]
-#####################################################################################################
+
 class FollowingListSerializer(serializers.ModelSerializer):
     user = UserMiniSerializer(source="following", read_only=True)
 
     class Meta:
         model = Follow
         fields = ["user", "created_at"]
-#####################################################################################################
+
+
+
 class FollowSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
@@ -465,3 +470,163 @@ class CommentUpdateSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ["content"]
 
+####################################################################################################
+
+# لعرض الصور المرتبطة بالبوست في الـ response
+class MediaSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Media
+        fields = ["id", "image_url"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and hasattr(obj.image, "url"):
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
+
+class PostCreateSerializer(serializers.ModelSerializer):
+    # استقبال صور (قائمة) عند الإنشاء — write_only لأننا نعرض الصور عبر MediaSerializer بعد الحفظ
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
+
+    # الحقول الخاصة بالـ AI (يمكن أن يضعها backend/worker لاحقًا أو يدخِلها المستخدم)
+    tags = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
+
+    # حقول للـ response
+    media = MediaSerializer(many=True, read_only=True, source="images")
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "content",
+            "code",
+            "tags",
+            "ai_code_summary",
+            "ai_improved",
+            "post_type",
+            "created_at",
+            "images",   # للـ write (رفع)
+            "media",    # للـ read (روابط الصور بعد الحفظ)
+        ]
+        read_only_fields = ["id", "created_at", "media"]
+
+
+    @transaction.atomic
+    def create(self, validated_data):
+        # 1) أخرج الصور من البيانات المؤقتة
+        images = validated_data.pop("images", None)
+
+        # 2) جلب المستخدم من الـ context (مفترض مصادق)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            raise serializers.ValidationError("Authentication required to create a post.")
+
+        # 3) أنشئ البوست
+        post = Post.objects.create(user=user, **validated_data)
+
+        # 4) إذا في صور — انشئ Media لكل صورة
+        #    دعم عملي: إذا self.context['request'].FILES يحتوي ملفات تحت 'images', نستخدمها أيضاً
+        if images is None:
+            # محاولة قراءة الملفات مباشرة من request.FILES (key = 'images')
+            if request is not None:
+                files = request.FILES.getlist("images")
+                images = files if files else None
+
+        if images:
+            media_objs = []
+            for img in images:
+                m = Media.objects.create(post=post, uploaded_by=user, image=img)
+                media_objs.append(m)
+
+        return post
+
+
+#عرض البوست كاملاً
+class PostSerializer(serializers.ModelSerializer):
+    
+    user = UserMiniSerializer(read_only=True)             # معلومات المستخدم
+    media = MediaSerializer(source="images", many=True)    # الصور
+    reaction_counts = serializers.SerializerMethodField()  # عدد كل تفاعل
+    user_reaction = serializers.SerializerMethodField()     # نوع تفاعل المستخدم الحالي
+    total_comments = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "user",
+            "content",
+            "code",
+            "tags",
+            "ai_code_summary",
+            "ai_improved",
+            "post_type",
+            "media",
+            "reaction_counts",
+            "user_reaction",
+            "total_comments",
+            "created_at",
+        ]
+
+    def get_reaction_counts(self, obj):
+        """إرجاع عدد كل نوع تفاعل"""
+        return obj.get_reaction_counts()
+
+    def get_user_reaction(self, obj):
+        """ما هو التفاعل الذي قام به المستخدم الحالي؟"""
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+
+        reaction = Reaction.objects.filter(user=request.user, post=obj).first()
+        if reaction:
+            return reaction.reaction_type
+        return None
+
+
+
+#تعديل البوست او حذفه
+class PostUpdateSerializer(serializers.ModelSerializer):
+    # ملفات جديدة للإضافة
+    images = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
+    # ids للحذف
+    delete_images = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+
+    class Meta:
+        model = Post
+        fields = [
+            "content", "code",
+            "tags", "post_type", "ai_code_summary", "ai_improved",
+            "images", "delete_images"
+        ]
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        #حذف الصور
+        delete_ids = validated_data.pop("delete_images", [])
+        if delete_ids:
+            Media.objects.filter(id__in=delete_ids, post=instance).delete()
+        #اضافة صور جديدة
+        images = validated_data.pop("images", [])
+        if images:
+            for f in images:
+                Media.objects.create(post=instance, uploaded_by=user, image=f)
+
+        # update other fields
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        instance.save()
+        return instance
