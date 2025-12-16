@@ -630,3 +630,70 @@ class PostUpdateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, val)
         instance.save()
         return instance
+    
+#تبع الاقتراحات    
+class UserSuggestionSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
+    followers_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "personal_photo_url",
+            "specialization",
+            "followers_count",
+        ]
+    
+    def get_personal_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+            return request.build_absolute_uri(obj.personal_photo.url)
+        return None    
+    
+####################################################################
+"""مانون مجربين ابدا بس عطاني ياهن الشات هيك وبعدين بس نعمل الذكاء منرجعلن"""
+# class AiTaskCreateSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = AiTask
+#         fields = [
+#             "id",
+#             "task_type",
+#             "input_text",
+#             "post",
+#         ]
+#         read_only_fields = ["id"]
+
+#     def validate_post(self, post):
+#         request = self.context["request"]
+
+#         # تأكد إنو المستخدم صاحب البوست
+#         if post.user != request.user:
+#             raise serializers.ValidationError(
+#                 "You can only run AI tasks on your own posts."
+#             )
+#         return post
+
+#     def create(self, validated_data):
+#         return AiTask.objects.create(
+#             user=self.context["request"].user,
+#             status="pending",
+#             **validated_data
+#         )
+    
+
+# class AiTaskSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = AiTask
+#         fields = [
+#             "id",
+#             "task_type",
+#             "status",
+#             "input_text",
+#             "output_text",
+#             "post",
+#             "created_at",
+#             "processed_at",
+#             "error_message",
+#         ]    

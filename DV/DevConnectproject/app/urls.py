@@ -73,6 +73,16 @@ urlpatterns = [
     # تعديل + حذف
     path("posts/<int:post_id>/edit/", PostUpdateDeleteView.as_view(), name="post-edit"),
 
+    #feed posts
+    path("feed/", FeedView.as_view(), name="feed"),
+
+    #user Suggestions in feed
+    path("suggested-users/", SuggestedUsersView.as_view(), name="suggested-users"),
+
+    # AI Tasks Endpoints(معلقين مؤقتا)
+    # path("ai-tasks/", CreateAiTaskView.as_view()),
+    # path("ai-tasks/<int:task_id>/", AiTaskDetailView.as_view()),
+
 ]
 
 

@@ -406,16 +406,21 @@ class AiTask(models.Model):
     # المهمة مرتبطة بمنشور؟ (معظم مهامك خاصة بالبوست)
     post = models.ForeignKey(
         "Post",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="ai_tasks"
+        on_delete=models.CASCADE,
+        related_name="ai_tasks",
     )
+
 
     created_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
 
     error_message = models.TextField(null=True, blank=True)
+
+    class Meta:
+     indexes = [
+        models.Index(fields=["post"]),
+        models.Index(fields=["user", "status"]),
+    ]
     
     def __str__(self):
         return f"{self.task_type} - ({self.status}) by {self.user.username}"

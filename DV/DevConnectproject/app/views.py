@@ -11,7 +11,13 @@ from rest_framework.permissions import IsAuthenticated,IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
-
+from django.db.models import Q
+import random
+from .utils import (
+    normalize_specialization,
+    expand_words,
+    similarity_score
+)
 
 User = get_user_model()
 
@@ -630,29 +636,10 @@ class PostDetailView(APIView):
         return Response(serializer.data, status=200)
     
 
-# class PostListView(ListAPIView):
-#     serializer_class = PostSerializer
-#     permission_classes = [IsAuthenticatedOrReadOnly]
-
-#     def get_queryset(self):
-#         queryset = Post.objects.all().order_by("-created_at")
-
-#         # فلترة حسب النوع
-#         post_type = self.request.GET.get("type")
-#         if post_type:
-#             queryset = queryset.filter(post_type=post_type)
-
-#         # فلترة حسب التاغ
-#         tag = self.request.GET.get("tag")
-#         if tag:
-#             queryset = queryset.filter(tags__icontains=tag)
-
-#         return queryset
-
-
 
 #تعديل المنشور او حذفه
 class PostUpdateDeleteView(APIView):
+    """شغالة"""
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -661,7 +648,7 @@ class PostUpdateDeleteView(APIView):
         post = get_object_or_404(Post, id=post_id)
 
         if post.user != request.user:
-            return Response({"detail": "You cannot edit this post."}, status=403)
+            return Response({"message": "You cannot edit this post."}, status=403)
 
         serializer = PostUpdateSerializer(
             post,
@@ -684,27 +671,234 @@ class PostUpdateDeleteView(APIView):
         post = get_object_or_404(Post, id=post_id)
 
         if post.user != request.user:
-            return Response({"detail": "You cannot delete this post."}, status=403)
+            return Response({"message": "You cannot delete this post."}, status=403)
 
         post.delete()
         return Response({"message": "Post deleted successfully"}, status=200)
+######################################################################################    
+ #feedاظهار منشورات ال   
+class FeedView(APIView):
+    """شغالة"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # الأشخاص يلي المستخدم بيتابعن
+        following_ids = user.following_set.values_list(
+            "following_id", flat=True
+        )
+
+        # جلب منشوراتهم
+        posts = Post.objects.filter(user_id__in=following_ids)
+
+        # 🔹 فلترة حسب نوع المنشور (اختياري)
+        post_type = request.GET.get("type")
+        if post_type:
+            posts = posts.filter(post_type=post_type)
+
+        # 🔹 ترتيب (افتراضي: الأحدث)
+        ordering = request.GET.get("ordering", "desc")
+        if ordering == "asc":
+            posts = posts.order_by("created_at")
+        else:
+            posts = posts.order_by("-created_at")
+
+        serializer = PostSerializer(
+            posts,
+            many=True,
+            context={"request": request}
+        )
+        return Response(serializer.data, status=200)
+
+
+
+# class SuggestedUsersView(APIView):
+#     """شغالة"""
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         current_user = request.user
+
+#         following_ids = Follow.objects.filter(
+#             follower=current_user
+#         ).values_list("following_id", flat=True)
+
+#         user_words = expand_words(
+#             normalize_specialization(current_user.specialization)
+#         )
+
+#         candidates = User.objects.exclude(
+#             id=current_user.id
+#         ).exclude(
+#             id__in=following_ids
+#         )
+
+#         strong_matches = []
+#         medium_matches = []
+#         weak_matches = []
+
+#         for user in candidates:
+#             candidate_words = expand_words(
+#                 normalize_specialization(user.specialization)
+#             )
+
+#             score = similarity_score(user_words, candidate_words)
+
+#             if score >= 6:
+#                 strong_matches.append((score, user))
+#             elif score >= 3:
+#                 medium_matches.append((score, user))
+#             else:
+#                 weak_matches.append(user)
+
+#         # ترتيب الأقوياء
+#         strong_matches.sort(key=lambda x: x[0], reverse=True)
+#         medium_matches.sort(key=lambda x: x[0], reverse=True)
+
+#         final_users = []
+
+#         # 1️⃣ أقوى تشابه
+#         final_users.extend([u for _, u in strong_matches[:5]])
+
+#         # 2️⃣ تشابه متوسط
+#         final_users.extend([u for _, u in medium_matches[:5]])
+
+#         # 3️⃣ Fallback ذكي (لو لسا ناقص)
+#         if len(final_users) < 8:
+#             random.shuffle(weak_matches)
+#             final_users.extend(weak_matches[:8 - len(final_users)])
+
+#         serializer = UserSuggestionSerializer(
+#             final_users,
+#             many=True,
+#             context={"request": request}
+#         )
+
+#         return Response(serializer.data, status=200)
     
+
+
+class SuggestedUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        current_user = request.user
+
+        # (يُفترض وجود User, Follow, UserSuggestionSerializer)
+        
+        # 1. تحضير بيانات المستخدم الحالي والمرشحين
+        following_ids = Follow.objects.filter(
+            follower=current_user
+        ).values_list("following_id", flat=True)
+
+        user_words_normalized = normalize_specialization(current_user.specialization)
+        user_words_expanded = expand_words(user_words_normalized)
+
+        candidates = User.objects.exclude(
+            id=current_user.id
+        ).exclude(
+            id__in=following_ids
+        )
+
+        scored_users = []      # (score, user) حيث score >= 1
+        zero_score_users = []  # (user) حيث score < 1
+        
+        # 2. حساب الدرجات والفصل
+        for user in candidates:
+            candidate_words_normalized = normalize_specialization(user.specialization)
+            candidate_words_expanded = expand_words(candidate_words_normalized)
+
+            score = similarity_score(
+                user_words_expanded, 
+                candidate_words_expanded, 
+                user_words_normalized, 
+                candidate_words_normalized
+            )
+            
+            if score >= 1:
+                scored_users.append((score, user))
+            else:
+                zero_score_users.append(user) 
+
+
+        # 3. الترتيب وتشكيل القائمة النهائية (التركيز على أول 8)
+        
+        # ترتيب النتائج الموجبة تنازلياً (بما فيها عامل كسر الثبات العشوائي)
+        scored_users.sort(key=lambda x: x[0], reverse=True)
+
+        final_users = []
+        
+        # 3.1: الأولوية المطلقة: سحب أفضل 8 نتائج موزونة (الأكثر صلة)
+        num_to_display = 8
+        top_similar = [u for _, u in scored_users[:num_to_display]]
+        final_users.extend(top_similar)
+        
+        # 3.2: ملء الفراغ بالنتائج الصفرية العشوائية (Fallback)
+        # إذا لم نجد 8 مرشحين ذوي صلة، نملأ البقية من المستخدمين الآخرين عشوائياً.
+        if len(final_users) < num_to_display:
+            
+            # نجمع كل المستخدمين الذين بقوا في قائمة scored_users (بعد أول 8) مع المستخدمين الصفرية
+            remaining_scored_users = [u for _, u in scored_users[num_to_display:]]
+            fallback_list = remaining_scored_users + zero_score_users
+            
+            random.shuffle(fallback_list) # خلط الـ Fallback لضمان التنويع
+            
+            num_to_add = num_to_display - len(final_users)
+            final_users.extend(fallback_list[:num_to_add])
+
+        # 4. إرسال البيانات
+        serializer = UserSuggestionSerializer(
+            final_users,
+            many=True,
+            context={"request": request}
+        )
+
+        return Response(serializer.data, status=200)
     
-# class PostListView(ListAPIView):
-#     serializer_class = PostSerializer
-#     permission_classes = [IsAuthenticatedOrReadOnly]
 
-#     def get_queryset(self):
-#         queryset = Post.objects.all().order_by("-created_at")
+##############################################################
+#لبعدين منجربن ومنشوف شو وضعن
 
-#         # فلترة حسب النوع
-#         post_type = self.request.GET.get("type")
-#         if post_type:
-#             queryset = queryset.filter(post_type=post_type)
 
-#         # فلترة حسب التاغ
-#         tag = self.request.GET.get("tag")
-#         if tag:
-#             queryset = queryset.filter(tags__icontains=tag)
+# # لانشاء مهمة ذكاء اصطناعي جديدة
+# class CreateAiTaskView(APIView):
+    """مو شغالة لانو ما نعمل الذكاء الاصطناعي ومانا مجربة"""
+#     permission_classes = [IsAuthenticated]
 
-#         return queryset
+#     def post(self, request):
+#         serializer = AiTaskCreateSerializer(
+#             data=request.data,
+#             context={"request": request}
+#         )
+
+#         if serializer.is_valid():
+#             task = serializer.save()
+
+#             return Response(
+#                 AiTaskSerializer(task).data,
+#                 status=201
+#             )
+
+#         return Response(serializer.errors, status=400)  
+# 
+#   
+# #جلب تفاصيل مهمة ذكاء اصطناعي معينة واحدة 
+# class AiTaskDetailView(APIView):
+                  #  """مو شغالة لانو ما نعمل الذكاء الاصطناعي ومانا مجربة"""
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, task_id):
+#         task = get_object_or_404(
+#             AiTask,
+#             id=task_id,
+#             user=request.user
+#         )
+
+#         return Response(
+#             AiTaskSerializer(task).data,
+#             status=200
+#         )    
+    
+# """#بجوز يكون اسا بدنا وحدة لجلب مهام بوست معين    """
+###########################################################################
