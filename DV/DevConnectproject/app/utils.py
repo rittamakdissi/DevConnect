@@ -29,14 +29,14 @@ ALIASES = {
     # Backend Development
     "backend": {
         "django", "flask", "laravel", "spring", "express", "node", "rails", "fastapi", "nestjs",
-        ".net", "php", "ruby", "python","jwt", "fullstack", "full-stack", "web",
+        ".net", "php", "ruby", "python","jwt", "fullstack", "full-stack", "web","node.js",
     },
 
     # Frontend Development
     "frontend": {
         "react", "vue", "angular", "svelte", "next", "nuxt", "tailwind", "bootstrap",
         "html", "css", "javascript", "typescript", "sass", "less", "webpack", "babel",
-        "fullstack", "full-stack", "web",
+        "fullstack", "full-stack", "web","react.js","next.js","js",
     },
     
     # ... (يجب إضافة بقية المفاتيح من الكود السابق: mobile, ui, ml, devops, etc.)
@@ -123,7 +123,7 @@ def similarity_score(words1_expanded, words2_expanded, words1_normalized, words2
             score += 2
         else:
             score += 1
-
+        
     # 2. منح مكافأة النية الأصلية (لزيادة دقة التطابق المباشر)
     original_intersection = words1_normalized & words2_normalized
     score += len(original_intersection) * ORIGINAL_WORD_BONUS

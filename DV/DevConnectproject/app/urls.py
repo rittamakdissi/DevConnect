@@ -62,9 +62,9 @@ urlpatterns = [
     # updata or delete comment
     path("comments/<int:comment_id>/", CommentDetailView.as_view()),
 
-   # Create a post
+    #Create a post
     path("posts/create/", CreatePostView.as_view()),
-
+    
    # path("posts/", PostListView.as_view(), name="posts-list"),
 
    # عرض منشور واحد
@@ -78,6 +78,7 @@ urlpatterns = [
 
     #user Suggestions in feed
     path("suggested-users/", SuggestedUsersView.as_view(), name="suggested-users"),
+
 
     # AI Tasks Endpoints(معلقين مؤقتا)
     # path("ai-tasks/", CreateAiTaskView.as_view()),
