@@ -403,13 +403,13 @@ class AiTask(models.Model):
     # النتيجة → رجعها AI
     output_text = models.TextField(null=True, blank=True)
 
-    # المهمة مرتبطة بمنشور؟ (معظم مهامك خاصة بالبوست)
+    #هاد الصح لانو المهام مرتبطة بالبوست فقط
     post = models.ForeignKey(
         "Post",
         on_delete=models.CASCADE,
         related_name="ai_tasks",
     )
-
+ 
 
     created_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
@@ -417,6 +417,7 @@ class AiTask(models.Model):
     error_message = models.TextField(null=True, blank=True)
 
     class Meta:
+     
      indexes = [
         models.Index(fields=["post"]),
         models.Index(fields=["user", "status"]),
