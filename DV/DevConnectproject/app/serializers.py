@@ -631,7 +631,7 @@ class PostUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
     
-#تبع الاقتراحات    
+#feedتبع الاقتراحات   يلي بكونو بال   
 class UserSuggestionSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
@@ -697,3 +697,87 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
 #             "processed_at",
 #             "error_message",
 #         ]    
+
+###################################################################################################################
+
+
+# #النسخة الاخف من بوست سيريالايزر مشان البحث ولكن ما بدي استخدا لانو ما بترجع التعليقات واللايكات
+# class SearchPostSerializer(serializers.ModelSerializer):
+#     user = UserMiniSerializer(read_only=True)
+#     media = MediaSerializer(source="images", many=True)
+
+#     class Meta:
+#         model = Post
+#         fields = [
+#             "id",
+#             "user",
+#             "content",
+#             "tags",
+#             "post_type",
+#             "media",
+#             "created_at",
+#         ]
+
+
+#   enter سيريالايزر المستخدم تبع لما ينعملو بحث هاد يعني يلي مع ضغط 
+class SearchUserSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
+   # followers_count = serializers.IntegerField(read_only=True)
+    is_following = serializers.SerializerMethodField()
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "personal_photo_url",
+            "specialization",
+            #"followers_count",
+            "is_following",
+        ]
+
+    def get_personal_photo_url(self, obj):
+        request = self.context.get("request")
+        if obj.personal_photo:
+            return request.build_absolute_uri(obj.personal_photo.url)
+        return None
+    
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+
+        return Follow.objects.filter(
+            follower=request.user,
+            following=obj
+        ).exists()
+
+# تبع سجل البحث يعني رح يعرضلي الكلمة يلي كتبتا وبحثت عنها
+class SearchHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SearchHistory
+        fields = ["id",  "search_type","query", #"created_at"]    
+        ]
+
+        
+
+# البوست المختصر تبع الاقتراحات انا وعم اكتب ولما اضغط عليه برجعلي محتوى المنشور كامل
+class SuggestedPostMiniSerializer(serializers.ModelSerializer):
+    author_username = serializers.CharField(source="user.username", read_only=True)
+    author_photo = serializers.ImageField(source="user.personal_photo", read_only=True)
+    post_type = serializers.CharField
+    short_content = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "author_username",
+            "author_photo",
+            "post_type",
+            "short_content",
+            "created_at",
+        ]
+
+    def get_short_content(self, obj):
+        # أول 80 حرف كمثال
+        return obj.content[:80] + "..." if len(obj.content) > 80 else obj.content   

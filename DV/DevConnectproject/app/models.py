@@ -66,7 +66,12 @@ class User(AbstractUser):
     @property
     def following_count(self):
       return self.following_set.count()
-
+    # لتسريع البحث
+    class Meta:
+        indexes = [
+            models.Index(fields=["username"]),
+            models.Index(fields=["specialization"]),
+        ]
     
 
     def __str__(self):
@@ -148,6 +153,14 @@ class Post(models.Model):
     @classmethod
     def get_posts_by_tag(cls, tag_name):
         return cls.objects.filter(tags__icontains=tag_name)
+    
+    #مشان البحث يكون سريع
+    class Meta:
+        indexes = [
+            models.Index(fields=["content"]),
+            models.Index(fields=["tags"]),
+        ]
+
 
     def __str__(self):
         return f"Post {self.id} by {self.user.username}"
@@ -425,4 +438,41 @@ class AiTask(models.Model):
     
     def __str__(self):
         return f"{self.task_type} - ({self.status}) by {self.user.username}"
+    
+
+
+# # بخزن سجل البحث لكل مستخدم
+class SearchHistory(models.Model):
+    SEARCH_TYPE_CHOICES = (
+        ("people", "People"),
+        ("posts", "Posts"),
+        ("tag", "Tag"),
+    )
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    search_type = models.CharField(max_length=10, choices=SEARCH_TYPE_CHOICES)
+
+    # للبوستات والتاغات
+    query = models.CharField(max_length=255, blank=True, null=True)
+
+    # للأشخاص
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="searched_by",
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = (
+            ("user", "search_type", "query"),
+            ("user", "search_type", "target_user"),
+        )
+    
+    def __str__(self):
+        return f"{self.user.username} searched '{self.query}' ({self.search_type})"
     

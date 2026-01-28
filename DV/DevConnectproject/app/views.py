@@ -1,3 +1,5 @@
+from collections import Counter
+from datetime import timezone
 from django.contrib.auth import get_user_model
 from .serializers import RegisterSerializer
 from django.http import Http404
@@ -8,11 +10,15 @@ from rest_framework.views import APIView
 from .models import *
 from .serializers import *
 from rest_framework.permissions import IsAuthenticated,IsAuthenticatedOrReadOnly
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import NotFound
 from django.shortcuts import get_object_or_404
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q
 import random
+from django.db.models import Count, Value, IntegerField,Exists,OuterRef
+from django.db.models.functions import Length
+from collections import Counter
 from .utils import (
     normalize_specialization,
     expand_words,
@@ -811,3 +817,391 @@ class SuggestedUsersView(APIView):
     
 # """#بجوز يكون اسا بدنا وحدة لجلب مهام بوست معين    """
 ###########################################################################
+
+
+
+class SearchPagination(PageNumberPagination):
+    page_size = 10
+
+# البحث
+class SearchView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+    pagination_class = SearchPagination
+
+    def get(self, request):
+        query = request.query_params.get("q", "").strip()
+        search_type = request.query_params.get("type", "people")
+         
+        if not query:
+            return Response(
+                {"message": "Search query is required"},
+                status=400)
+       
+        # =====================
+        # 🔍 SEARCH PEOPLE
+        # =====================
+        if search_type == "people": # بالبداية بيطلع يلي عندو متابعين اكتر شي
+            follow_subquery=Follow.objects.filter(
+                follower=request.user,
+                following=OuterRef("pk")
+            )
+            users = User.objects.filter(
+                Q(username__icontains=query) |
+                Q(specialization__icontains=query)
+            ).exclude(
+                id=request.user.id
+            ).annotate(
+              followers_total=Count("followers_set", distinct=True),
+              is_following=Exists(follow_subquery)
+             ).order_by(
+                 "-is_following",
+                "-followers_total",
+                "username",
+            ).distinct()
+           # --- أسطر الـ Pagination ---
+            paginator = SearchPagination()
+            page = paginator.paginate_queryset(users, request)
+            serializer = SearchUserSerializer(page, many=True, context={"request": request})
+            # serializer = SearchUserSerializer(
+            #     users,
+            #     many=True,
+            #     context={"request": request}
+            # )# هدول قبل ما نضيف الpagination
+            
+
+            # SearchHistory.objects.create(
+            #    user=request.user,
+            #    query=query,
+            #   search_type= search_type)
+            SearchHistory.objects.update_or_create(
+              user=request.user,
+              search_type=search_type,
+              query=query.lower(),
+              defaults={}
+ )
+            if not page:
+                return Response({
+                    "type": "people",
+                    "query": query,
+                    "message": "no matching results found",
+                    "results": []
+                }, status=200)
+            
+            return Response({
+                "type": "people",
+                "query":query,
+                "count": users.count(),
+                "has_more": paginator.get_next_link() is not None, # عشان الـ Show More
+                "results": serializer.data
+            })
+
+        # =====================
+        # 🔍 SEARCH POSTS
+        # =====================
+        if search_type == "posts":# هون نحنا عم نرجع البوست كامل بس فينا اذا حبينا نعمل متل ما عملنا بالاقتراحات انو نرجع بوست مخفف ولما نضغط عليه بيطلع البوست كامل
+            
+            posts = Post.objects.filter(
+                Q(content__icontains=query) |
+                Q(tags__icontains=query)
+            ).select_related(
+                "user"
+            ).prefetch_related(
+                "images"
+            ).annotate(
+            likes_count=Count("reactions", distinct=True),
+            comments_count=Count("comments", distinct=True),
+            ).order_by(# فينا نغير ترتيبن
+                "-created_at",        # 🔥 الأحدث أولاً واذا تنين بنفس التاريخ يلي عليه لايكات اكتر قبل
+                "-likes_count",       # 👍 بعدها الأكثر تفاعل واذا تساوو بعدد التفاعلات عدد التعليقات هو يلي بيحسم
+                "-comments_count"     # 💬 بعدها التعليقات
+             ).distinct()
+            # --- أسطر الـ Pagination ---
+            paginator = SearchPagination()
+            page = paginator.paginate_queryset(posts, request)
+            serializer = PostSerializer(page, many=True, context={"request": request})
+            
+
+            
+            # SearchHistory.objects.create(
+            #    user=request.user,
+            #    query=query,
+            #   search_type= search_type)
+            SearchHistory.objects.update_or_create(
+              user=request.user,
+              search_type=search_type,
+              query=query.lower(),
+              defaults={}
+ )
+            # فحص إذا كانت النتائج فارغة
+            if not page:
+                return Response({
+                    "type": "posts",
+                    "query": query,
+                    "message": "no matching results foundة",
+                    "results": []
+                }, status=200)
+            
+            return Response({
+                "type": "posts",
+                "query":query,
+                "count": posts.count(),
+                "has_more": paginator.get_next_link() is not None,
+                "results": serializer.data
+            })
+        
+
+        # =====================
+        # 🔍 SEARCH TAGS
+            #search bar & click on post
+        # =====================
+
+        if search_type=="tag":
+            posts = Post.objects.filter(
+                tags__icontains=query
+            ).select_related(
+                "user" # لجلب بيانات صاحب البوست بطلب واحد
+            ).prefetch_related(
+                "images" # لجلب الصور المرتبطة بطلب واحد
+            ).annotate(
+                likes_count=Count("reactions", distinct=True),
+                comments_count=Count("comments", distinct=True),
+            ).order_by(   
+                "-likes_count",       # الأكثر تفاعلاً
+                "-comments_count"  ,# الأكثر نقاشاً
+                 "-created_at",   #الاحدث 
+            ).distinct()
+            # --- أسطر الـ Pagination ---
+            paginator = SearchPagination()
+            page = paginator.paginate_queryset(posts , request)
+            serializer = PostSerializer(page, many=True, context={"request": request})
+            
+            # serializer =  PostSerializer(
+            #     posts,
+            #     many=True,
+            #     context={"request": request}
+            # )#هدول قبل ما نضيف الpagination
+
+            
+            # SearchHistory.objects.create(
+            #    user=request.user,
+            #    query=query,
+            #   search_type= search_type)
+            SearchHistory.objects.update_or_create(
+              user=request.user,
+              search_type=search_type,
+              query=query.lower(),
+              defaults={}
+ )
+
+            
+            if not page:
+                return Response({
+                    "type": "tag",
+                    "query": query,
+                    "message": "no matching results found",
+                    "results": []
+                }, status=200)
+            
+            return Response({
+                "type": "tag",
+                "query":query,
+                "count": posts.count(),
+                "has_more": paginator.get_next_link() is not None,
+                "results": serializer.data
+            })
+
+        return Response(
+            {"message": "Invalid search type"},
+            status=400
+         )
+     
+    
+#  لجلب آخر عمليات البحث يعني سجل البحث
+class SearchHistoryView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        search_type = request.query_params.get("type", "people")#الافتراضي هو الاشخاص
+
+        qs = SearchHistory.objects.filter(user=request.user)
+
+        if search_type:
+            qs = qs.filter(search_type=search_type)
+
+        qs = qs.order_by("-created_at")#بيرجع السجل مرتب يلي بالاول هني يلي بحثت عليون اخر شي
+
+        result = []
+        seen_per_type = {}
+
+        for item in qs:
+            t = item.search_type
+            q = item.query
+
+            if t not in seen_per_type:
+                seen_per_type[t] = set()
+
+            # منع التكرار داخل نفس النوع
+            if q in seen_per_type[t]:
+                continue
+
+            seen_per_type[t].add(q)
+            result.append(item)
+
+            # يعرض اخر 15 عمليات بحث
+            if len(seen_per_type[t]) == 15:
+                continue
+
+            # إذا كل الأنواع وصلوا للحد، نوقف
+            if all(len(v) >= 15 for v in seen_per_type.values()):
+                break
+
+        serializer = SearchHistorySerializer(result, many=True)
+        return Response(serializer.data)
+
+#لاحذف عنصر من سجل البحث
+class DeleteSearchHistoryView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self,request, pk):
+      item=get_object_or_404(SearchHistory,id=pk,user=request.user)
+      item.delete()
+      return Response({"message:deleted succefully"},status=204)
+    
+
+
+
+#هي ليظهرو الاقتراحات نحنا وعم نكتب
+class SearchSuggestionsView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.GET.get("q", "").strip()
+        search_type = request.GET.get("type", "people")
+
+        if not query:
+            return Response([])
+
+  
+        # 👤 PEOPLE ب
+        if search_type == "people":
+             follow_subquery=Follow.objects.filter(
+                follower=request.user,
+                following=OuterRef("pk")
+            )
+            #  following_ids = Follow.objects.filter(
+            #   follower=request.user
+            # ).values_list("following_id", flat=True)
+
+             users = User.objects.filter(
+               Q(username__icontains=query) |
+               Q(specialization__icontains=query)
+             ).exclude(
+              id=request.user.id
+            #  ).exclude(
+            #   id__in=following_ids
+             ).annotate(
+              is_following=Exists(follow_subquery),
+              followers_total=Count("followers_set", distinct=True),
+              
+             ).order_by(# اقتراحات الاشخاص يعني انا وعم اكتب بالبحث ببلشو يطلعو الاشخاص يلي انا متابعتن بالاول وبعدا ببلشو حسب يلي الاشهر يعني يلي عندو متابعين اكثر
+               "-is_following",
+              "-followers_total"
+             )[:15]
+
+             return Response({
+              "type": "people",
+              "results": SearchUserSerializer(
+              users,
+                many=True,
+                context={"request": request}
+            ).data
+        })
+
+    
+        # 📝 POSTS 
+        if search_type == "posts":
+         LIMIT = 20  # أو 15 أو 20 حسب ما بدك
+         posts = Post.objects.filter(
+            Q(content__icontains=query) |
+            Q(tags__icontains=query)
+            ).annotate(
+             likes_count=Count("reactions", distinct=True),
+             comments_count=Count("comments", distinct=True),
+            ).order_by(#      وفينا نغير فيون متل ما بدنا
+                "-likes_count",
+               "-comments_count",
+               "-created_at",
+               )[:LIMIT]
+        
+         return Response({"type": "posts",
+                          "results": SuggestedPostMiniSerializer(
+                              posts, many=True,context={"request": request}).data})
+                
+        # TAGS       
+        # هاد و يلي بعدو عم يعطو نفس النتيجة بس رح خليون لنشوف كيف الششكل يلي رح يرجعولنا ياه الفرونت لحتى نخزن التاغات بقاعدة البيانات  
+        # if search_type == "tag":             #  وبقلبا التاغاتlist هاد للشكل يلي مخزن 
+        #    posts = Post.objects.exclude(     # واذا بدنا نستخدمو بدنا نضفلو تحسينات متل انو يطلعو التاغات الاكثر استخداما بالاول
+        #      tags=[]
+        #    ).values_list("tags", flat=True)
+
+        #    tag_set = set()
+                                         # هيك شكل التاغات المخزنة هون
+        #    for tags in posts:          # tags = ["django", "backend"]
+        #        if not tags:
+        #         continue
+               
+        #        for tag in tags:
+        #          if query.lower() in tag.lower():
+        #            tag_set.add(tag.lower())
+        #    return Response({
+        #       "type": "tag",
+        #       "query": query,
+        #       "results": sorted(tag_set)[:10]
+        #     })    
+
+        # بجوز ما يكون سريع اداؤه
+        if search_type == "tag":
+           query_lower = query.lower()
+           posts = Post.objects.exclude(tags=[]).values_list("tags", flat=True)
+           counter = Counter()
+           for tags in posts:     #tags = ["django", "backend"] or tags = "#django #backend" or "py web backend"
+             if not tags:
+               continue
+             extracted = []
+             # إذا String
+             if isinstance(tags, str):
+               extracted = tags.replace("#", "").lower().split()
+             # إذا List
+             elif isinstance(tags, list):
+               for tag in tags:
+                extracted.extend(tag.replace("#", "").lower().split())
+             # فلترة مبكرة (تحسين أداء)
+             for tag in extracted:
+              if query_lower in tag:
+                counter[tag] += 1
+
+            # تقسيم التاغات
+           starts_with = []
+           contains = []
+           for tag, count in counter.items():
+              if tag.startswith(query_lower):
+                 starts_with.append((tag, count))
+              else:
+                 contains.append((tag, count))
+
+            # 🧠 ترتيب حسب الاستخدام
+           starts_with.sort(key=lambda x: -x[1])
+           contains.sort(key=lambda x: -x[1])
+
+           results = [tag for tag, _ in starts_with + contains][:10]
+
+           return Response({
+                "type": "tag",
+                 "query": query,
+                "results": results
+           })
+        return Response([])    

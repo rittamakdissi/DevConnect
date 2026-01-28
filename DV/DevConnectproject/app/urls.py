@@ -79,6 +79,17 @@ urlpatterns = [
     #user Suggestions in feed
     path("suggested-users/", SuggestedUsersView.as_view(), name="suggested-users"),
 
+    #  البحث و طبعا بدو كويري
+    path("search/",SearchView.as_view(), name="search"),
+    
+    # سجل اخر عمليات البحث وبدو كويري
+    path("search/history/",SearchHistoryView.as_view()),
+
+    #لاحذف عنصر من سجل البحث
+    path("search/history/<int:pk>/",DeleteSearchHistoryView.as_view()),
+
+    #اقتراحات الاشخاص مباشرة اثناء الكتابةو بدو كويري
+    path("search/suggestions/",SearchSuggestionsView.as_view()),
 
     # AI Tasks Endpoints(معلقين مؤقتا)
     # path("ai-tasks/", CreateAiTaskView.as_view()),
