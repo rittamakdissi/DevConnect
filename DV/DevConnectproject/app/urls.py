@@ -82,6 +82,9 @@ urlpatterns = [
     #  البحث و طبعا بدو كويري
     path("search/",SearchView.as_view(), name="search"),
     
+    #لتسجيل حساب الشخص يلي فتت عليه لما عملت بحث عنو  ص  
+    path("search/people/click/",PeopleSearchClickView.as_view()),
+
     # سجل اخر عمليات البحث وبدو كويري
     path("search/history/",SearchHistoryView.as_view()),
 
@@ -90,6 +93,7 @@ urlpatterns = [
 
     #اقتراحات الاشخاص مباشرة اثناء الكتابةو بدو كويري
     path("search/suggestions/",SearchSuggestionsView.as_view()),
+
 
     # AI Tasks Endpoints(معلقين مؤقتا)
     # path("ai-tasks/", CreateAiTaskView.as_view()),
