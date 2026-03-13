@@ -105,8 +105,11 @@ class Post(models.Model):
     # شرح الذكاء للكود
     ai_code_summary = models.TextField(blank=True, null=True)
 
-    # نص محسّن أو ملخّص يولده الذكاء
+    # نص محسّنء
     ai_improved = models.TextField(blank=True, null=True)
+    
+    # توليد منشور
+    ai_generated = models.TextField(null=True, blank=True)
 
     # نوع المنشور — الذكاء هو يلي يختارو
     post_type = models.CharField(

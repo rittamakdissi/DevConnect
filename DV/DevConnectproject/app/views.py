@@ -23,7 +23,18 @@ from django.db.models import Count, Value, IntegerField, Exists, OuterRef, F
 from django.db.models.functions import Length
 from collections import Counter
 from django.db.models.functions import Lower
-
+import time
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import Post
+from .utils import translate_text
+#from .ai.improve_post import improve_post_text
+from deep_translator import GoogleTranslator
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import Post
+import re
+from rest_framework.decorators import api_view, permission_classes
 from .utils import (
     normalize_specialization,
     expand_words,
@@ -1278,3 +1289,191 @@ class SearchSuggestionsView(APIView):
         #         "results": results
         #    })
         return Response([])    
+#####################################################################################
+# class ImprovePostView(APIView):
+
+#     def post(self, request):
+
+#         content = request.data.get("content","")
+
+#         if not content:
+#             return Response(
+#                 {"error": "content is required"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         improved = improve_post_text(content)
+
+#         return Response({
+#             "original": content,
+#             "ai_improved": improved
+#         })
+
+
+# # استدعاء الدالة اللي جهزناها على Colab
+# from .ai.improve_post import improve_text  # هنا دالتك اللي في Colab أو محلية
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+
+# def improve_post_api(request):
+#     """
+#     Endpoint لتحسين النصوص:
+#     - يتلقى JSON: { "content": "النص" }
+#     - يرجع JSON: { "improved": "النص المحسن" }
+#     """
+#     content = request.data.get("content", "")
+#     if not content:
+#         return Response({"error": "No content provided"}, status=400)
+
+#     # نرسل النص للنموذج لتحسينه
+#     improved_text = improve_text(content)
+
+#     return Response({"improved": improved_text})
+#################################################################################################  
+
+# ترجمة المنشور
+class TranslatePostView(APIView):
+    "شغالة"
+    def post(self, request):
+
+        post_id = request.data.get("post_id")
+
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({"error": "Post not found"}, status=404)
+
+        translated_data = {}
+
+        try:
+            if post.content:
+                translated_data["content"] = translate_text(post.content)
+                time.sleep(0.2) # ممكن اذا صار عنا مشاكل نزيدو لل 0.5 بصير اضمن
+
+            if post.ai_improved:
+                translated_data["ai_improved"] = translate_text(post.ai_improved)
+                time.sleep(0.2)
+
+            if post.ai_generated:
+                translated_data["ai_generated"] = translate_text(post.ai_generated)
+                time.sleep(0.2)
+
+            if post.ai_code_summary:
+                translated_data["ai_code_summary"] = translate_text(post.ai_code_summary)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+        return Response(translated_data)
+    
+
+
+#  " هي متل يلي فوق بس بجوز اسرع بشوي بس ولكننن مشكلتا اذا كان عنا حقول بالعربي وحفول بالانكليزي ما رح تترجم الحقل المختلف صح"
+# class TranslatePostView(APIView):
+
+#     def post(self, request):
+
+#         post_id = request.data.get("post_id")
+
+#         try:
+#             post = Post.objects.get(id=post_id)
+#         except Post.DoesNotExist:
+#             return Response({"error": "Post not found"}, status=404)
+
+#         separator = "|||SPLIT|||"
+
+#         texts = [
+#             post.content or "",
+#             post.ai_improved or "",
+#             post.ai_generated or "",
+#             post.ai_code_summary or ""
+#         ]
+
+#         combined_text = separator.join(texts)
+
+#         # تحديد اتجاه الترجمة
+#         arabic_pattern = re.compile(r'[\u0600-\u06FF]')
+
+#         if arabic_pattern.search(post.content or ""):
+#             source = "ar"
+#             target = "en"
+#         else:
+#             source = "en"
+#             target = "ar"
+
+#         translated = GoogleTranslator(source=source, target=target).translate(combined_text)
+
+#         parts = translated.split(separator)
+
+#         # ضمان عدم حدوث IndexError
+#         while len(parts) < 4:
+#             parts.append("")
+
+#         return Response({
+#             "content": parts[0],
+#             "ai_improved": parts[1],
+#             "ai_generated": parts[2],
+#             "ai_code_summary": parts[3]
+#         })
+
+#عرض النص الاصلي للمنشور
+class ShowOriginalPostView(APIView):
+    "شغالة"
+    def post(self, request):
+
+        post_id = request.data.get("post_id")
+
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({"error": "Post not found"}, status=404)
+
+        original_data = {
+            "content": post.content,
+            "ai_improved": post.ai_improved,
+            "ai_code_summary": post.ai_code_summary,
+            "ai_generated": post.ai_generated
+        }
+
+        return Response(original_data)
+
+
+# ترجمة التعليقات
+class TranslateCommentView(APIView):
+    "شغالة"
+    def post(self, request):
+     
+        comment_id = request.data.get("comment_id")
+
+        if not comment_id:
+            return Response({"error": "comment_id required"}, status=400)
+
+        try:
+            comment = Comment.objects.get(id=comment_id)
+        except Comment.DoesNotExist:
+            return Response({"error": "Comment not found"}, status=404)
+
+        return Response({
+            "comment": translate_text(comment.content)
+        })
+
+
+
+#عرض النص الاصلي للتعليق
+class ShowOriginalCommentView(APIView):
+    "شغالة"
+    def post(self, request):
+
+        comment_id = request.data.get("comment_id")
+
+        try:
+            comment = Comment.objects.get(id=comment_id)
+        except Comment.DoesNotExist:
+            return Response({"error": "Comment not found"}, status=404)
+
+        return Response({
+            "content": comment.content
+        })
+    
+#############################################################################    

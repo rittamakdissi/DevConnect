@@ -4,7 +4,6 @@ from django.contrib.auth import get_user_model
 from .models import *
 from django.db import transaction
 from django.conf import settings
-
 User = get_user_model()
 
 
@@ -500,6 +499,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
     tags = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
 
     # حقول للـ response
@@ -514,6 +514,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
             "tags",
             "ai_code_summary",
             "ai_improved",
+            "ai_generated",
             "post_type",
             "created_at",
             "images",   # للـ write (رفع)
@@ -572,8 +573,9 @@ class PostSerializer(serializers.ModelSerializer):
             "tags",
             "ai_code_summary",
             "ai_improved",
+            "ai_generated",
             "post_type",
-            "media",
+             "media",
             "reaction_counts",
             "user_reaction",
             "total_comments",
@@ -608,7 +610,7 @@ class PostUpdateSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             "content", "code",
-            "tags", "post_type", "ai_code_summary", "ai_improved",
+            "tags", "post_type", "ai_code_summary", "ai_improved","ai_generated",
             "images", "delete_images"
         ]
 

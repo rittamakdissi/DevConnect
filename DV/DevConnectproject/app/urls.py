@@ -94,7 +94,20 @@ urlpatterns = [
     #اقتراحات الاشخاص مباشرة اثناء الكتابةو بدو كويري
     path("search/suggestions/",SearchSuggestionsView.as_view()),
 
+    path("translate-post/", TranslatePostView.as_view(), name="translate-post"),
 
+    path("translate-comment/", TranslateCommentView.as_view(), name="translate-comment"),
+
+    path("show-original-post/", ShowOriginalPostView.as_view()),
+
+    path("show-original-comment/", ShowOriginalCommentView.as_view()),
+
+
+
+
+    #path("translate/", TranslateTextView.as_view(), name="translate-text"),
+
+   # path('ai/improve-post/', improve_post_api, name='improve-post'),
     # AI Tasks Endpoints(معلقين مؤقتا)
     # path("ai-tasks/", CreateAiTaskView.as_view()),
     # path("ai-tasks/<int:task_id>/", AiTaskDetailView.as_view()),

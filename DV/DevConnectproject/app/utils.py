@@ -2,6 +2,7 @@ import random
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+import textwrap
 
 # ⚠️ الكلمات التي يتم تجاهلها
 STOP_WORDS = {
@@ -188,3 +189,47 @@ def similarity_score(words1_expanded, words2_expanded, words1_normalized, words2
 #     الآلية: بالنسبة للأشخاص الذين لا علاقة لهم بتخصصك (أصحاب الدرجة صفر)، يتم استخدام random.shuffle().
 
 #     النتيجة: في كل مرة يظهر فيها "شخص غريب" لتكملة العدد، سيكون شخصاً مختلفاً تماماً عن المرة السابقة وبترتيب عشوائي بحت.
+
+#########################################################################################################################################
+
+
+import re
+from deep_translator import GoogleTranslator
+
+# def translate_text(text):
+"""هاد ابطء من يلي بعدو"""
+#     arabic_pattern = re.compile(r'[\u0600-\u06FF]')
+
+#     if arabic_pattern.search(text):
+#         # النص عربي → ترجمه للإنجليزية
+#         return GoogleTranslator(source='ar', target='en').translate(text)
+
+#     else:
+#         # النص ليس عربي → ترجمه للعربية
+#         return GoogleTranslator(source='en', target='ar').translate(text)
+
+def translate_text(text):
+    "شغال وسرعتو منيحة"
+    arabic_pattern = re.compile(r'[\u0600-\u06FF]')
+
+    if arabic_pattern.search(text):
+        source = 'ar'
+        target = 'en'
+    else:
+        source = 'en'
+        target = 'ar'
+
+    # تقسيم النص الطويل
+    max_length = 800 #اذا بدي سرع بزيد هاد 
+    chunks = textwrap.wrap(text, width=max_length, break_long_words=False, replace_whitespace=False)
+    #chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
+
+    translator = GoogleTranslator(source=source, target=target, timeout=20)  # ننشئه مرة واحدة
+
+    translated_chunks = []
+
+    for chunk in chunks:
+        translated_chunks.append(translator.translate(chunk))
+
+    return " ".join(translated_chunks).replace("\r\n", "\n")
+
