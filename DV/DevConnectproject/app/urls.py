@@ -115,6 +115,9 @@ urlpatterns = [
     #لجلب الاشعارات كلها
     path('notifications/', NotificationListView.as_view(), name='notifications-list'),
 
+    # (تحديث توكن (الخاص بفاير بايسFCM الخاص بالمستخدم
+    path('update-fcm-token/', UpdateFCMTokenView.as_view(), name='update-fcm-token'),
+
 
 
     #path("translate/", TranslateTextView.as_view(), name="translate-text"),

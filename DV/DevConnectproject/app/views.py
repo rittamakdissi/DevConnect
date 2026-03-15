@@ -1524,3 +1524,19 @@ class MarkNotificationReadView(APIView):
             return Response({"detail": "Notification marked as read."}, status=status.HTTP_200_OK)
         except Notification.DoesNotExist:
             return Response({"error": "Notification not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+#مشان نستلم التوكن الخاص بمتصفح كل مستخدم
+class UpdateFCMTokenView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get('token')
+        if token:
+            user = request.user
+            user.fcm_token = token
+            user.save()
+            return Response({"message": "Token updated successfully"})
+        return Response({"error": "No token provided"}, status=400)            

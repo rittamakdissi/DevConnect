@@ -4,6 +4,11 @@ from .models import Media
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Follow, Comment, Reaction, CommentReaction, Notification
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .models import Notification
+from .fcm_manager import send_push_notification
+
 
 # حذف ملف الصورة من الميديا نهائيا عندما المستخدم يحذفا
 @receiver(post_delete, sender=Media)
@@ -72,3 +77,44 @@ def create_comment_notification(sender, instance, created, **kwargs):
                 comment=instance,
                 post=instance.post
             )
+
+
+# firebase
+@receiver(post_save, sender=Notification)
+def trigger_notification_push(sender, instance, created, **kwargs):
+    if created:
+        # وصول مباشر للتوكن من المستخدم
+        token = instance.to_user.fcm_token 
+        
+        if token:
+            # القاموس: أنظف وأسهل للإضافة والتعديل
+            # body_messages = {
+            #     "follow": f"بدأ {instance.from_user.username} بمتابعتك",
+            #     "post_reaction": f"تفاعل {instance.from_user.username} مع منشورك",
+            #     "comment_reaction": f"أعجب {instance.from_user.username} بتعليقك",
+            #     "new_comment": f"علق {instance.from_user.username} على منشورك",
+            #     "reply_comment": f"رد {instance.from_user.username} على تعليقك",
+            # }
+            body_messages = {
+                  "follow": f"{instance.from_user.username} started following you",
+                  "post_reaction": f"{instance.from_user.username} reacted to your post",
+                 "comment_reaction": f"{instance.from_user.username} liked your comment",
+                 "new_comment": f"{instance.from_user.username} commented on your post",
+                 "reply_comment": f"{instance.from_user.username} replied to your comment",
+                }
+
+            
+            # جلب الرسالة بناءً على النوع، وإذا مو موجودة بياخد الرسالة الافتراضية
+            body = body_messages.get(instance.notification_type,"New notification from DevConnect")
+            title = "DevConnect"
+
+            # تحديد الـ target_id بذكاء
+            target_id = str(instance.post.id if instance.post else (instance.comment.id if instance.comment else ""))
+
+            data_payload = {
+                "target_id": target_id,
+                "target_type": str(instance.notification_type),
+            }
+
+            # الإرسال الفعلي
+            send_push_notification(token, title, body, data_payload)
