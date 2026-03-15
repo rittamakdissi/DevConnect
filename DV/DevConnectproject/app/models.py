@@ -30,6 +30,7 @@ class User(AbstractUser):
         unique=True,
         validators=[username_validator]
     )
+    fcm_token = models.CharField(max_length=255, null=True, blank=True)
 
     # Extra fields
     email = models.EmailField(unique=True)

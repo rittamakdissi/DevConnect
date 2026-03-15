@@ -783,3 +783,94 @@ class SuggestedPostMiniSerializer(serializers.ModelSerializer):
     def get_short_content(self, obj):
         # أول 80 حرف كمثال
         return obj.content[:80] + "..." if len(obj.content) > 80 else obj.content   
+#########################################################################################
+
+# class NotificationSerializer(serializers.ModelSerializer):
+#     # منستخدم الـ UserMiniSerializer اللي عندك أصلاً مشان صورة واسم الشخص
+#     from_user = UserMiniSerializer(read_only=True)
+    
+#     class Meta:
+#         model = Notification
+#         fields = [
+#             'id', 
+#             'from_user', 
+#             'notification_type', 
+#             'post_id',     # أيدي البوست مشان يفتح عليه
+#             'comment_id',  # أيدي الكومنت في حال كان رد أو ريأكشن كومنت
+#             'is_read', 
+#             'created_at'
+#         ]
+
+
+################################################################################
+# الخاص بالاشعارات
+class NotificationSerializer(serializers.ModelSerializer):
+    from_user = UserMiniSerializer(read_only=True)
+    post_image = serializers.SerializerMethodField()
+    target_id = serializers.SerializerMethodField()
+    target_type = serializers.SerializerMethodField()
+    reaction_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'from_user', 'notification_type', 'reaction_type',
+            'post_id', 'comment_id', 'post_image', 
+            'target_id', 'target_type', 
+            'is_read', 'created_at'
+        ]
+    def get_reaction_type(self, obj):
+        # 1. إذا كان التفاعل على منشور
+        if obj.notification_type == "post_reaction" and obj.post:
+            # منروح لجدول تفاعلات المنشورات ومنجيب التفاعل اللي عمله هاد الشخص على هاد المنشور
+            reaction = Reaction.objects.filter(user=obj.from_user, post=obj.post).first()
+            return reaction.reaction_type if reaction else None
+
+        # 2. إذا كان التفاعل على تعليق
+        if obj.notification_type == "comment_reaction" and obj.comment:
+            # منروح لجدول تفاعلات التعليقات ومنجيب النوع
+            reaction = CommentReaction.objects.filter(user=obj.from_user, comment=obj.comment).first()
+            return reaction.reaction_type if reaction else None
+
+        return None   
+
+    def get_post_image(self, obj):
+        target_post = None
+        if obj.post:
+            target_post = obj.post
+        elif obj.comment and hasattr(obj.comment, 'post'):
+            target_post = obj.comment.post
+
+        if target_post:
+            # بما أن images هي مجموعة (RelatedManager)، نأخذ أول صورة منها
+            first_image = target_post.images.all().first()
+            
+            if first_image and hasattr(first_image, 'image') and first_image.image:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(first_image.image.url)
+                return first_image.image.url
+        return None
+
+    def get_target_id(self, obj):
+        # التوجيه للتعليق إذا كان الفعل مرتبط بتعليق، وإلا للمنشور
+        if obj.comment:
+            return obj.comment.id
+        if obj.post:
+            return obj.post.id
+        return None
+
+    def get_target_type(self, obj):
+        # تشخيص دقيق لأنواع الإشعارات (تأكدي أن المسميات تطابق ما في الموديل عندك)
+        type_str = str(obj.notification_type).lower()
+        
+        if 'comment' in type_str or 'reply' in type_str:
+            return "comment"
+        
+        if 'post' in type_str or 'reaction' in type_str:
+            # إذا كان التفاعل على تعليق (لازم نشيك)
+            if obj.comment:
+                return "comment"
+            return "post"
+            
+        return "profile"     

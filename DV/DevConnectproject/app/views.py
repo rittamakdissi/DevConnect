@@ -83,9 +83,9 @@ class MyProfileView(APIView):
 # OtherUserProfile
 class OtherUserProfileView(APIView):
     """شغالة"""
-    def get(self, request, username):
+    def get(self, request, user_id):
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return Response(
                 {"message": "User not found."},
@@ -1476,4 +1476,51 @@ class ShowOriginalCommentView(APIView):
             "content": comment.content
         })
     
-#############################################################################    
+#############################################################################   
+# لجلب عدد الإشعارات غير المقروءة للمستخدم مشان شغلة تطلع النقطة الحمرا للمستخدم انو عندو اشعار جديد 
+"""
+وظيفتها: ترجع بس "رقم" (مثلاً: 5).
+
+ . هاد الرابط هو اللي بيستخدموه كل 30 ثانية (
+عشان رفقاتك بالفرونت يحطوا هاد الرقم فوق "النقطة الحمراء" اللي على أيقونة الجرس
+polling
+"""
+class UnreadNotificationsCountView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # منعد الإشعارات اللي لسا ما انقرت (is_read=False)
+        count = request.user.notifications.filter(is_read=False).count()
+        return Response({"unread_count": count})
+
+
+# لجلب قائمة الإشعارات كاملة (مع تفاصيل كل إشعار) مرتبة من الأحدث للأقدم
+class NotificationListView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # جلب إشعارات المستخدم مرتبة من الأحدث
+        notifications = request.user.notifications.all().order_by('-created_at')
+        serializer = NotificationSerializer(notifications, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    # def post(self, request):
+    #     return Response({"detail": "Notifications count reset."})        
+    
+
+# لعلامة إشعار معين كمقروء (لما المستخدم يضغط على الإشعار )
+class MarkNotificationReadView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            # منجيب الإشعار بناءً على الـ ID (pk) وبشرط يكون للمستخدم الحالي
+            notification = Notification.objects.get(pk=pk, to_user=request.user)
+            notification.is_read = True
+            notification.save()
+            return Response({"detail": "Notification marked as read."}, status=status.HTTP_200_OK)
+        except Notification.DoesNotExist:
+            return Response({"error": "Notification not found."}, status=status.HTTP_404_NOT_FOUND)

@@ -9,7 +9,7 @@ urlpatterns = [
     path("profile/me/", MyProfileView.as_view(), name="my-profile"),
 
     # Other user's profile
-    path("profile/<str:username>/", OtherUserProfileView.as_view(), name="other-user-profile"),
+    path("profile/<int:user_id>/", OtherUserProfileView.as_view(), name="other-user-profile"),
 
     # Update user info
     path("profile/me/update/info/", UpdateUserInfoView.as_view()),
@@ -94,14 +94,26 @@ urlpatterns = [
     #اقتراحات الاشخاص مباشرة اثناء الكتابةو بدو كويري
     path("search/suggestions/",SearchSuggestionsView.as_view()),
 
+    #ترجمة المنشور
     path("translate-post/", TranslatePostView.as_view(), name="translate-post"),
 
+    #ترجمة التعليق
     path("translate-comment/", TranslateCommentView.as_view(), name="translate-comment"),
 
+    #عرض المنشور الأصلي لما يكون مترجم
     path("show-original-post/", ShowOriginalPostView.as_view()),
 
+    #عرض التعليق الأصلي لما يكون مترجم
     path("show-original-comment/", ShowOriginalCommentView.as_view()),
 
+    #مشان النقطة الحمراء عالايقونة تبع الاشعارات
+    path('notifications/unread-count/', UnreadNotificationsCountView.as_view(), name='unread-notifications-count'),
+
+    #لما يفتح الاشعارات ويصير قيمتو مقروءة
+    path('notifications/<int:pk>/read/', MarkNotificationReadView.as_view(), name='mark-notification-read'),
+
+    #لجلب الاشعارات كلها
+    path('notifications/', NotificationListView.as_view(), name='notifications-list'),
 
 
 
