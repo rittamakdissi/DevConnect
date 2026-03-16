@@ -25,3 +25,6 @@ local_settings.py
 # OS files
 Thumbs.db
 .DS_Store
+
+#######
+firebase_key.json

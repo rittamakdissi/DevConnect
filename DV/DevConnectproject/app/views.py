@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import timezone
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import AllowAny
 from django.core import paginator
 from django.forms import BooleanField
 from .serializers import RegisterSerializer
@@ -47,6 +48,7 @@ User = get_user_model()
 # Rigister
 """شغالة"""
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
@@ -60,12 +62,9 @@ class RegisterView(APIView):
 
 
 
-# Login
-"""   هي لازم اتاكد منها من الشات لانو ما بظن صح
+# Login 
+ # خالصة
 
-class LoginView(TokenObtainPairView):
-    serializer_class = LoginSerializer
-"""
 
 
 # MyProfile
@@ -117,7 +116,7 @@ class UpdateUserInfoView(APIView):
             serializer.save()
             return Response({"message": "User info updated successfully","data":serializer.data},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
 
 #تعديل الصورة الشخصية أو حذفها
@@ -160,6 +159,8 @@ class UpdateUserPhotoView(APIView):
 # تعديل اسم المستخدم
 class UserNameChangeView(APIView):
     """شغالة"""
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         user=request.user
         serializer = UsernameUpdateSerializer(user)
@@ -172,23 +173,24 @@ class UserNameChangeView(APIView):
             serializer.save()
             return Response({"message": "username updated successfully","data":serializer.data}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    #permission_classes = [IsAuthenticated]
 
 
 
 # إعدادات الملف الشخصي يعني عرض اسم المستخدم وايميلو
 class SettingsView(APIView):
     """  شغالة"""
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         user=request.user
         serializer = SettingsProfileSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    #permission_classes = [IsAuthenticated]
 
 
 # تغيير كلمة المرور
 class ChangePasswordView(APIView):
     """ شغالة"""
+    permission_classes = [IsAuthenticated]
+
     def put(self, request):
         user = request.user
         serializer = ChangePasswordSerializer(user,data=request.data,context={"request": request})
@@ -196,7 +198,6 @@ class ChangePasswordView(APIView):
             serializer.save()
             return Response({"message": "Password changed successfully"},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    #permission_classes = [IsAuthenticated]
 
 
 
@@ -221,7 +222,6 @@ class FollowersListView(APIView):
         )
 
         return Response(serializer.data, status=200)
-    #permission_classes = [IsAuthenticated]
 
 
 
@@ -247,7 +247,6 @@ class FollowingListView(APIView):
         )
 
         return Response(serializer.data, status=200)
-    #permission_classes = [IsAuthenticated]
 
 
 
@@ -273,7 +272,6 @@ class FollowView(APIView):
             return Response({"message": "User followed successfully"}, status=201)
 
         return Response(serializer.errors, status=400)
-    #permission_classes = [IsAuthenticated]
 
 
 
@@ -297,7 +295,6 @@ class UnfollowView(APIView):
 
         follow_obj.delete()
         return Response({"message": "Unfollowed successfully"}, status=200)
-    #permission_classes = [IsAuthenticated]
 
 ##########################################################################################################
 
@@ -1335,6 +1332,7 @@ class SearchSuggestionsView(APIView):
 # ترجمة المنشور
 class TranslatePostView(APIView):
     "شغالة"
+    permission_classes = [IsAuthenticated]
     def post(self, request):
 
         post_id = request.data.get("post_id")
@@ -1371,6 +1369,7 @@ class TranslatePostView(APIView):
 
 #  " هي متل يلي فوق بس بجوز اسرع بشوي بس ولكننن مشكلتا اذا كان عنا حقول بالعربي وحفول بالانكليزي ما رح تترجم الحقل المختلف صح"
 # class TranslatePostView(APIView):
+      #permission_classes = [IsAuthenticated]
 
 #     def post(self, request):
 
@@ -1420,6 +1419,7 @@ class TranslatePostView(APIView):
 #عرض النص الاصلي للمنشور
 class ShowOriginalPostView(APIView):
     "شغالة"
+    permission_classes = [IsAuthenticated]
     def post(self, request):
 
         post_id = request.data.get("post_id")
@@ -1442,6 +1442,7 @@ class ShowOriginalPostView(APIView):
 # ترجمة التعليقات
 class TranslateCommentView(APIView):
     "شغالة"
+    permission_classes = [IsAuthenticated]
     def post(self, request):
      
         comment_id = request.data.get("comment_id")
@@ -1463,6 +1464,7 @@ class TranslateCommentView(APIView):
 #عرض النص الاصلي للتعليق
 class ShowOriginalCommentView(APIView):
     "شغالة"
+    permission_classes = [IsAuthenticated]
     def post(self, request):
 
         comment_id = request.data.get("comment_id")
