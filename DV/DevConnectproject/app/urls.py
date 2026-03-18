@@ -119,10 +119,16 @@ urlpatterns = [
     path('update-fcm-token/', UpdateFCMTokenView.as_view(), name='update-fcm-token'),
 
 
+    path('send-otp/', SendOTPView.as_view(), name='send-otp'),
+
+
+    path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+
+
 
     #path("translate/", TranslateTextView.as_view(), name="translate-text"),
 
-   # path('ai/improve-post/', improve_post_api, name='improve-post'),
+    #path('ai/improve-post/', improve_post_api, name='improve-post'),
     # AI Tasks Endpoints(معلقين مؤقتا)
     # path("ai-tasks/", CreateAiTaskView.as_view()),
     # path("ai-tasks/<int:task_id>/", AiTaskDetailView.as_view()),

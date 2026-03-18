@@ -33,6 +33,8 @@ from .utils import translate_text
 from deep_translator import GoogleTranslator
 from rest_framework.views import APIView
 from rest_framework.response import Response
+import random
+from django.core.mail import send_mail
 from .models import Post
 import re
 from rest_framework.decorators import api_view, permission_classes
@@ -707,7 +709,7 @@ class FeedView(APIView):
         following_ids = user.following_set.values_list(
             "following_id", flat=True
         )
-
+    
         # جلب منشوراتهم
         posts = Post.objects.filter(user_id__in=following_ids)
 
@@ -1541,4 +1543,73 @@ class UpdateFCMTokenView(APIView):
             user.fcm_token = token
             user.save()
             return Response({"message": "Token updated successfully"})
-        return Response({"error": "No token provided"}, status=400)            
+        return Response({"error": "No token provided"}, status=400)    
+#####################################################################################
+
+
+class SendOTPView(APIView):
+    permission_classes = [AllowAny] # أي شخص يستطيع طلب الكود
+
+    def post(self, request):
+        email = request.data.get('email')
+        
+        # 1. التأكد أن الإيميل مسجل في المنصة
+        if not User.objects.filter(email=email).exists():
+            return Response({"error": "User with this email don't exist"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. توليد رقم عشوائي من 6 خانات
+        otp_code = str(random.randint(100000, 999999))
+
+        # 3. حفظ الكود في قاعدة البيانات (تحديث إذا كان موجوداً أو إنشاء جديد)
+        PasswordResetCode.objects.update_or_create(
+            email=email, 
+            defaults={'code': otp_code}
+        )
+
+        # 4. إرسال الإيميل الحقيقي
+        subject = "Password Reset Verification Code"
+        message = f"Hello, welcome to DevConnect .\nYour verification code is: {otp_code}\nThis code is valid for 10 minutes."
+        
+        try:
+            send_mail(subject, message, settings.EMAIL_HOST_USER, [email])
+            return Response({"message": "Verification code has been sent to your email."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Failed to send email. Please check your connection or settings."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+
+
+
+class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        # 1. التأكد من تطابق كلمتي المرور
+        if new_password != confirm_password:
+            return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(new_password) < 8:
+            return Response({"error": "Password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. البحث عن الكود في قاعدة البيانات
+        try:
+            record = PasswordResetCode.objects.get(email=email, code=otp)
+        except PasswordResetCode.DoesNotExist:
+            return Response({"error": "Invalid or expired verification code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. إذا الكود صح، نغير كلمة مرور المستخدم الحقيقي
+        try:
+            user = User.objects.get(email=email)
+            user.set_password(new_password) # دجانغو بيشفر الباسورد تلقائياً هون
+            user.save()
+
+            # 4. مسح الكود من الجدول لكي لا يُستخدم مرة أخرى (للأمان)
+            record.delete()
+
+            return Response({"message": "Password reset successfully!"}, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)                 

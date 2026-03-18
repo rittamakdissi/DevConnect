@@ -562,12 +562,15 @@ class PostSerializer(serializers.ModelSerializer):
     reaction_counts = serializers.SerializerMethodField()  # عدد كل تفاعل
     user_reaction = serializers.SerializerMethodField()     # نوع تفاعل المستخدم الحالي
     total_comments = serializers.IntegerField(read_only=True)
+    is_following = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Post
         fields = [
             "id",
             "user",
+            "is_following",
             "content",
             "code",
             "tags",
@@ -581,6 +584,25 @@ class PostSerializer(serializers.ModelSerializer):
             "total_comments",
             "created_at",
         ]
+    
+    def get_is_following(self, obj):
+        #هل المستخدم الحالي يتابع صاحب هذا المنشور؟"
+        request = self.context.get("request")
+        
+        # 1. إذا لم يكن هناك طلب أو المستخدم غير مسجل دخول
+        if not request or not request.user.is_authenticated:
+            return False
+
+        # 2. إذا كان المنشور لي شخصياً (اختياري: ممكن ترجعي False أو None)
+        if request.user == obj.user:
+            return False
+
+        # 3. التحقق من جدول الـ Follow
+        # انتبهي: follower هو (أنا)، following هو (صاحب البوست)
+        return Follow.objects.filter(
+            follower=request.user,
+            following=obj.user  # لاحظي هنا استخدمنا obj.user وليس obj
+        ).exists()
 
     def get_reaction_counts(self, obj):
         """إرجاع عدد كل نوع تفاعل"""
@@ -874,3 +896,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             return "post"
             
         return "profile"     
+    
+
+
+############################################################################
