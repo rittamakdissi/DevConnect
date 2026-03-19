@@ -118,10 +118,10 @@ urlpatterns = [
     # (تحديث توكن (الخاص بفاير بايسFCM الخاص بالمستخدم
     path('update-fcm-token/', UpdateFCMTokenView.as_view(), name='update-fcm-token'),
 
-
+    # ارسال OTP لعملية إعادة تعيين كلمة المرور
     path('send-otp/', SendOTPView.as_view(), name='send-otp'),
 
-
+    # التحقق من الكود وإعادة تعيين كلمة المرور
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 
 

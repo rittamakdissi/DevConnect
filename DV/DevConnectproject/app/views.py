@@ -1546,8 +1546,9 @@ class UpdateFCMTokenView(APIView):
         return Response({"error": "No token provided"}, status=400)    
 #####################################################################################
 
-
+# لارسال الكود على الايميل
 class SendOTPView(APIView):
+    "شغالة"
     permission_classes = [AllowAny] # أي شخص يستطيع طلب الكود
 
     def post(self, request):
@@ -1569,16 +1570,30 @@ class SendOTPView(APIView):
         # 4. إرسال الإيميل الحقيقي
         subject = "Password Reset Verification Code"
         message = f"Hello, welcome to DevConnect .\nYour verification code is: {otp_code}\nThis code is valid for 10 minutes."
-        
+        html_message = f"""
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+              <h2 style="color: #007bff; text-align: center;">DevConnect</h2>
+              <hr>
+              <p style="font-size: 16px; color: #333;">Hello,</p>
+              <p style="font-size: 16px; color: #333;">You requested to reset your password. Use the verification code below to proceed:</p>
+              <div style="background-color: #f8f9fa; padding: 15px; text-align: center; border-radius: 5px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #007bff;">{otp_code}</span>
+              </div>
+              <p style="font-size: 14px; color: #777;">This code is valid for 10 minutes. If you didn't request this, please ignore this email.</p>
+              <hr>
+              <p style="font-size: 12px; color: #aaa; text-align: center;">© 2026 DevConnect - Programmers Platform</p>
+              </div>
+              """
         try:
-            send_mail(subject, message, settings.EMAIL_HOST_USER, [email])
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email],html_message=html_message)
             return Response({"message": "Verification code has been sent to your email."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": "Failed to send email. Please check your connection or settings."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
 
 
-
+# التحقق من صحة الكود وتغيير كلمة المرور
 class VerifyOTPView(APIView):
+    "شغالة"
     permission_classes = [AllowAny]
 
     def post(self, request):
