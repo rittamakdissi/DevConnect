@@ -73,7 +73,7 @@ urlpatterns = [
     # تعديل + حذف
     path("posts/<int:post_id>/edit/", PostUpdateDeleteView.as_view(), name="post-edit"),
 
-    #feed posts
+    #feed posts وبتاخد كويري مشان فلترة البوستات حسب النوع
     path("feed/", FeedView.as_view(), name="feed"),
 
     #user Suggestions in feed

@@ -502,6 +502,8 @@ class PostCreateSerializer(serializers.ModelSerializer):
     ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
 
+    code_language = serializers.CharField(required=False, allow_blank=True, allow_null=True) # جديد
+
     # حقول للـ response
     media = MediaSerializer(many=True, read_only=True, source="images")
 
@@ -511,6 +513,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
             "id",
             "content",
             "code",
+            "code_language",
             "tags",
             "ai_code_summary",
             "ai_improved",
@@ -563,7 +566,8 @@ class PostSerializer(serializers.ModelSerializer):
     user_reaction = serializers.SerializerMethodField()     # نوع تفاعل المستخدم الحالي
     total_comments = serializers.IntegerField(read_only=True)
     is_following = serializers.SerializerMethodField()
-
+    suggestion_reason = serializers.ReadOnlyField() 
+    # اذا ما بدي يطلع هاد الحقل لما ابحث عن المنشورات بعمل سيريلايزر جديد وبشيل منو هاد الحقل فقط
 
     class Meta:
         model = Post
@@ -571,14 +575,16 @@ class PostSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "is_following",
+            "suggestion_reason",
             "content",
             "code",
+            "code_language",
             "tags",
             "ai_code_summary",
             "ai_improved",
             "ai_generated",
             "post_type",
-             "media",
+            "media",
             "reaction_counts",
             "user_reaction",
             "total_comments",
@@ -631,7 +637,7 @@ class PostUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            "content", "code",
+            "content", "code","code_language",
             "tags", "post_type", "ai_code_summary", "ai_improved","ai_generated",
             "images", "delete_images"
         ]
@@ -832,6 +838,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     target_id = serializers.SerializerMethodField()
     target_type = serializers.SerializerMethodField()
     reaction_type = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = Notification

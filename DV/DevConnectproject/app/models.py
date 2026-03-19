@@ -105,6 +105,7 @@ class Post(models.Model):
 
     # شرح الذكاء للكود
     ai_code_summary = models.TextField(blank=True, null=True)
+    code_language = models.CharField(max_length=50, blank=True, null=True)
 
     # نص محسّنء
     ai_improved = models.TextField(blank=True, null=True)
