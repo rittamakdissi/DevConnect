@@ -32,11 +32,22 @@ urlpatterns = [
     #show following list
     path("user/<int:user_id>/following/", FollowingListView.as_view()),
 
-    # Follow a user
+    # Follow a user 
     path("follow/<int:user_id>/", FollowView.as_view(), name="follow"),
 
     # Unfollow a user
     path("unfollow/<int:user_id>/", UnfollowView.as_view(), name="unfollow"),
+
+
+
+
+
+
+
+
+
+
+
 
     # React to a post
     path("posts/<int:post_id>/react/", ReactToPostView.as_view(), name="react-post"),
@@ -124,14 +135,22 @@ urlpatterns = [
     # التحقق من الكود وإعادة تعيين كلمة المرور
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 
+    #توليد التاغات بالذكاء
+    path('suggest-tags/', SuggestTagsView.as_view(), name='suggest-tags'),
+    
+    #شرح الكود بالذكاء
+    path('explain-code/',ExplainCodeAPIView.as_view(), name='explain-api'),
+
+    #توليد منشور بالذكاء
+    path('generate-post/',GeneratePostAPIView.as_view(), name='generate-api'),
+
+    #تحسين محتوى بالكاء
+    path('improve-post/',ImprovePostAPIView.as_view(), name='improve-api'),
 
 
-    #path("translate/", TranslateTextView.as_view(), name="translate-text"),
+    path('classify-post/', ClassifyPostAPIView.as_view(), name='classify-api'),
 
-    #path('ai/improve-post/', improve_post_api, name='improve-post'),
-    # AI Tasks Endpoints(معلقين مؤقتا)
-    # path("ai-tasks/", CreateAiTaskView.as_view()),
-    # path("ai-tasks/<int:task_id>/", AiTaskDetailView.as_view()),
+
 
 ]
 

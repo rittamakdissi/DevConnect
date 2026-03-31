@@ -4,8 +4,13 @@ from django.contrib.auth import get_user_model
 from .models import *
 from django.db import transaction
 from django.conf import settings
-User = get_user_model()
+from django.core.exceptions import ValidationError
+from PIL import Image
+import io
+from django.core.files.base import ContentFile
 
+
+User = get_user_model()
 
 
 class LoginSerializer(serializers.Serializer):
@@ -145,6 +150,7 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
     posts = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -152,6 +158,7 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "personal_photo_url",
+            "is_following",
             "followers_count",
             "specialization",
             "bio",
@@ -166,6 +173,14 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.personal_photo.url)
         return None
 
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        # إذا كان المستخدم ضيف (غير مسجل دخول) نرجع False
+        if not request or not request.user.is_authenticated:
+            return False
+        return Follow.objects.filter(follower=request.user, following=obj).exists()
+
+
 #  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
     def get_posts(self, obj):
         # جلب كل منشورات المستخدم
@@ -176,16 +191,54 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
 
 
 
-#########################################################################################################
+# #########################################################################################################
+# class UserPhotoUpdateSerializer(serializers.ModelSerializer):
+#      class Meta:
+#          model=User
+#          fields=['personal_photo']
+#          extra_kwargs={
+#              'personal_photo':{'required':False, 'allow_null': True},
+
+#          }
 
 class UserPhotoUpdateSerializer(serializers.ModelSerializer):
-     class Meta:
-         model=User
-         fields=['personal_photo']
-         extra_kwargs={
-             'personal_photo':{'required':False, 'allow_null': True},
+    class Meta:
+        model = User
+        fields = ['personal_photo']
 
-         }
+    def validate_personal_photo(self, value):
+        #  التحقق من الحجم (5 ميغابايت)
+        limit = 5 * 1024 * 1024  
+        if value.size > limit:
+            raise ValidationError("Photo size is too big.It must be under 5MB")
+        return value
+
+    def update(self, instance, validated_data):
+        # حذف الصورة القديمة من السيرفر قبل حفظ الجديدة
+        new_photo = validated_data.get('personal_photo')
+        if new_photo:
+            if instance.personal_photo:
+                instance.personal_photo.delete(save=False)
+
+            # ضغط وتحسين الصورة قبل الحفظ
+            img = Image.open(new_photo)
+            
+            # تحويلها لـ RGB إذا كانت بصيغة أخرى (مثل RGBA) لضمان التوافق
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # تغيير الحجم  لجعلها أخف)
+            img.thumbnail((800, 800)) 
+
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=70) # تقليل الجودة لـ 70
+            output.seek(0)
+
+            # استبدال الصورة الأصلية بالمضغوطة
+            content_file = ContentFile(output.read(), name=new_photo.name)
+            validated_data['personal_photo'] = content_file
+
+        return super().update(instance, validated_data)
 ####################################################################################################
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -497,9 +550,9 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     # الحقول الخاصة بالـ AI (يمكن أن يضعها backend/worker لاحقًا أو يدخِلها المستخدم)
     tags = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
-    ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    #ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    #ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    #ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
 
     code_language = serializers.CharField(required=False, allow_blank=True, allow_null=True) # جديد
@@ -515,9 +568,9 @@ class PostCreateSerializer(serializers.ModelSerializer):
             "code",
             "code_language",
             "tags",
-            "ai_code_summary",
-            "ai_improved",
-            "ai_generated",
+            #"ai_code_summary",
+           # "ai_improved",
+           # "ai_generated",
             "post_type",
             "created_at",
             "images",   # للـ write (رفع)
@@ -580,9 +633,9 @@ class PostSerializer(serializers.ModelSerializer):
             "code",
             "code_language",
             "tags",
-            "ai_code_summary",
-            "ai_improved",
-            "ai_generated",
+            #"ai_code_summary",
+            #"ai_improved",
+            #"ai_generated",
             "post_type",
             "media",
             "reaction_counts",
@@ -638,7 +691,7 @@ class PostUpdateSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             "content", "code","code_language",
-            "tags", "post_type", "ai_code_summary", "ai_improved","ai_generated",
+            "tags", "post_type",
             "images", "delete_images"
         ]
 
@@ -789,45 +842,6 @@ class SearchHistorySerializer(serializers.ModelSerializer):
         ]
 
         
-
-# البوست المختصر تبع الاقتراحات انا وعم اكتب ولما اضغط عليه برجعلي محتوى المنشور كامل
-class SuggestedPostMiniSerializer(serializers.ModelSerializer):
-    author_username = serializers.CharField(source="user.username", read_only=True)
-    author_photo = serializers.ImageField(source="user.personal_photo", read_only=True)
-    post_type = serializers.CharField
-    short_content = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Post
-        fields = [
-            "id",
-            "author_username",
-            "author_photo",
-            "post_type",
-            "short_content",
-            "created_at",
-        ]
-
-    def get_short_content(self, obj):
-        # أول 80 حرف كمثال
-        return obj.content[:80] + "..." if len(obj.content) > 80 else obj.content   
-#########################################################################################
-
-# class NotificationSerializer(serializers.ModelSerializer):
-#     # منستخدم الـ UserMiniSerializer اللي عندك أصلاً مشان صورة واسم الشخص
-#     from_user = UserMiniSerializer(read_only=True)
-    
-#     class Meta:
-#         model = Notification
-#         fields = [
-#             'id', 
-#             'from_user', 
-#             'notification_type', 
-#             'post_id',     # أيدي البوست مشان يفتح عليه
-#             'comment_id',  # أيدي الكومنت في حال كان رد أو ريأكشن كومنت
-#             'is_read', 
-#             'created_at'
-#         ]
 
 
 ################################################################################

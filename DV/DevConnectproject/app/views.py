@@ -1,5 +1,4 @@
 from collections import Counter
-#from datetime import timezone
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import AllowAny
@@ -39,6 +38,7 @@ import random
 from django.core.mail import send_mail
 from .models import Post
 import re
+import requests
 from rest_framework.decorators import api_view, permission_classes
 from .utils import (
     normalize_specialization,
@@ -107,6 +107,8 @@ class OtherUserProfileView(APIView):
 #تعديل معلومات المستخدم من اختصاص و بيو و روابط
 class UpdateUserInfoView(APIView):
     """شغالة"""
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         user=request.user
         serializer = UserInfoUpdateSerializer(user)
@@ -120,7 +122,6 @@ class UpdateUserInfoView(APIView):
             serializer.save()
             return Response({"message": "User info updated successfully","data":serializer.data},status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    permission_classes = [IsAuthenticated]
 
 
 #تعديل الصورة الشخصية أو حذفها
@@ -128,10 +129,10 @@ class UpdateUserPhotoView(APIView):
     """شغالة"""
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [IsAuthenticated]
-
+       
     def put(self, request):
         user = request.user
-
+ 
         serializer = UserPhotoUpdateSerializer(
             user,
             data=request.data,
@@ -236,7 +237,13 @@ class FollowingListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request,user_id):
-        # المستخدم الذي نريد معرفة من يتابعه
+        # 1. منع أي مستخدم من رؤية قائمة متابعات غيره
+        if request.user.id != user_id:
+            return Response(
+                {"message": "You are not authorized to view this user's following list."}, 
+                status=403
+            )        
+        
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -665,6 +672,7 @@ class PostUpdateDeleteView(APIView):
     """شغالة"""
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+
 
     def patch(self, request, post_id):
         """تعديل البوست (نص + كود + صور إضافة/حذف)"""
@@ -1452,16 +1460,16 @@ class TranslatePostView(APIView):
                 translated_data["content"] = translate_text(post.content)
                 time.sleep(0.2) # ممكن اذا صار عنا مشاكل نزيدو لل 0.5 بصير اضمن
 
-            if post.ai_improved:
-                translated_data["ai_improved"] = translate_text(post.ai_improved)
-                time.sleep(0.2)
+            # if post.ai_improved:
+            #     translated_data["ai_improved"] = translate_text(post.ai_improved)
+            #     time.sleep(0.2)
 
-            if post.ai_generated:
-                translated_data["ai_generated"] = translate_text(post.ai_generated)
-                time.sleep(0.2)
+            # if post.ai_generated:
+            #     translated_data["ai_generated"] = translate_text(post.ai_generated)
+            #     time.sleep(0.2)
 
-            if post.ai_code_summary:
-                translated_data["ai_code_summary"] = translate_text(post.ai_code_summary)
+            # if post.ai_code_summary:
+            #     translated_data["ai_code_summary"] = translate_text(post.ai_code_summary)
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
@@ -1470,54 +1478,6 @@ class TranslatePostView(APIView):
     
 
 
-#  " هي متل يلي فوق بس بجوز اسرع بشوي بس ولكننن مشكلتا اذا كان عنا حقول بالعربي وحفول بالانكليزي ما رح تترجم الحقل المختلف صح"
-# class TranslatePostView(APIView):
-      #permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-
-#         post_id = request.data.get("post_id")
-
-#         try:
-#             post = Post.objects.get(id=post_id)
-#         except Post.DoesNotExist:
-#             return Response({"error": "Post not found"}, status=404)
-
-#         separator = "|||SPLIT|||"
-
-#         texts = [
-#             post.content or "",
-#             post.ai_improved or "",
-#             post.ai_generated or "",
-#             post.ai_code_summary or ""
-#         ]
-
-#         combined_text = separator.join(texts)
-
-#         # تحديد اتجاه الترجمة
-#         arabic_pattern = re.compile(r'[\u0600-\u06FF]')
-
-#         if arabic_pattern.search(post.content or ""):
-#             source = "ar"
-#             target = "en"
-#         else:
-#             source = "en"
-#             target = "ar"
-
-#         translated = GoogleTranslator(source=source, target=target).translate(combined_text)
-
-#         parts = translated.split(separator)
-
-#         # ضمان عدم حدوث IndexError
-#         while len(parts) < 4:
-#             parts.append("")
-
-#         return Response({
-#             "content": parts[0],
-#             "ai_improved": parts[1],
-#             "ai_generated": parts[2],
-#             "ai_code_summary": parts[3]
-#         })
 
 #عرض النص الاصلي للمنشور
 class ShowOriginalPostView(APIView):
@@ -1534,9 +1494,9 @@ class ShowOriginalPostView(APIView):
 
         original_data = {
             "content": post.content,
-            "ai_improved": post.ai_improved,
-            "ai_code_summary": post.ai_code_summary,
-            "ai_generated": post.ai_generated
+           # "ai_improved": post.ai_improved,
+           # "ai_code_summary": post.ai_code_summary,
+           # "ai_generated": post.ai_generated
         }
 
         return Response(original_data)
@@ -1687,7 +1647,7 @@ class SendOTPView(APIView):
               """
         try:
             send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email],html_message=html_message)
-            return Response({"message": "Verification code has been sent to your email."}, status=status.HTTP_200_OK)
+            return Response({"message": "Verification code has been sent to your email.Please check your inbox."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": "Failed to send email. Please check your connection or settings."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
 
@@ -1703,29 +1663,421 @@ class VerifyOTPView(APIView):
         new_password = request.data.get('new_password')
         confirm_password = request.data.get('confirm_password')
 
-        # 1. التأكد من تطابق كلمتي المرور
+        
+        # التأكد من تطابق كلمتي المرور
         if new_password != confirm_password:
             return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
         
         if len(new_password) < 8:
             return Response({"error": "Password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. البحث عن الكود في قاعدة البيانات
+       # البحث عن السجل بالإيميل فقط أولاً لفحص المحاولات والوقت
         try:
-            record = PasswordResetCode.objects.get(email=email, code=otp)
+            record = PasswordResetCode.objects.get(email=email)
         except PasswordResetCode.DoesNotExist:
-            return Response({"error": "Invalid or expired verification code."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No reset request found for this email."}, status=400)
 
-        # 3. إذا الكود صح، نغير كلمة مرور المستخدم الحقيقي
+        #  فحص عدد المحاولات الفاشلة (أمان ضد التخمين)
+        if record.attempts >= 5:
+            record.delete() 
+            return Response({"error": "Too many failed attempts. Please request a new code."}, status=400)
+
+        #  فحص وقت انتهاء الصلاحية (10 دقائق)
+        if timezone.now() > record.created_at + timedelta(minutes=10):
+            record.delete()
+            return Response({"error": "Verification code has expired."}, status=400)
+
+        # التحقق من صحة الكود 
+        if record.code != otp:
+            record.attempts += 1 # زيادة عدد المحاولات الفاشلة
+            record.save()
+            return Response({"error": f"Invalid code. "}, status=400)
+        #  إذا الكود صح، نغير كلمة مرور المستخدم الحقيقي
         try:
             user = User.objects.get(email=email)
             user.set_password(new_password) # دجانغو بيشفر الباسورد تلقائياً هون
             user.save()
 
-            # 4. مسح الكود من الجدول لكي لا يُستخدم مرة أخرى (للأمان)
+            #  مسح الكود من الجدول لكي لا يُستخدم مرة أخرى (للأمان)
             record.delete()
 
             return Response({"message": "Password reset successfully!"}, status=status.HTTP_200_OK)
             
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)                 
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)      
+
+###########################################################################################
+
+#  توليد التاغات بالذكاء
+class SuggestTagsView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # 1. استلام النص من الفرونت إند (محتوى المنشور اللي لسه عم ينكتب)
+        content = request.data.get('content', '')
+
+        if not content:
+            return Response({'error': 'Please write some content first'}, status=400)
+
+        # 2. رابط الكولاب السحري (تأكدي أنه الرابط الفعال حالياً)
+        colab_url = "https://uncheapened-multimacular-gwyneth.ngrok-free.dev/suggest-tags"
+
+        try:
+            # 3. نرسل النص للكولاب ونجلب التاغات
+            response = requests.get(colab_url, params={"text": content}, timeout=10)
+            data = response.json()
+            
+            # 4. نرجع التاغات للفرونت إند عشان تظهر للمستخدم
+            return Response({
+                "suggested_tags": data.get('suggested_tags', [])
+            }, status=200)
+
+        except Exception as e:
+            return Response({'error': 'AI Assistant is offline'}, status=503)
+
+###############################################################################################
+
+#شرح الكود 
+
+#هاد منبعتلو اللغة تبعت المستخدم 
+class ExplainCodeAPIView(APIView):
+    "شغالة"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        user_code = request.data.get("code_content")
+        user_lang = request.data.get("language", "en") # افتراضياً إنجليزي إذا ما انبعتت
+
+        if not user_code:
+            return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        if user_lang == 'ar':
+            system_instruction = (
+                "أنت خبير برمجي محترف. اشرح منطق الكود بأسلوب 'المختصر المفيد' باللغة العربية التقنية. "
+                "تجنب التحية والشرح البديهي، وركز على وظيفة الكود."
+            )
+            user_prompt = f"اشرح هذا الكود باختصار شديد:\n\n{user_code}"
+        else:
+            system_instruction = (
+                "You are a professional software expert. Explain the code logic in a 'concise and direct' manner in English. "
+                "Avoid greetings and obvious details, focus on the main function "
+            )
+            user_prompt = f"Explain this code very briefly:\n\n{user_code}"
+
+
+        GROQ_API_KEY = "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" # حطي مفتاحك هون
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.3 # لضمان رد رصين ومختصر
+        }
+
+        try: #ارسال الطلب لـ Groq
+            response = requests.post(url, json=payload, headers=headers)
+            result = response.json()
+            
+            if 'choices' in result:
+                explanation = result['choices'][0]['message']['content'].strip()
+                return Response({
+                    "explanation": explanation,
+                    #"status": "success",
+                    #"language_used": user_lang
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "error": "Failed to get response from Groq",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# هاد الكود بيشرح بالعربي فقط 
+# class ExplainCodeAPIView(APIView):
+#      "شغالة"
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         user_code = request.data.get("code_content")
+        
+#         if not user_code:
+#             return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         GROQ_API_KEY = "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" 
+#         url = "https://api.groq.com/openai/v1/chat/completions"
+        
+#         groq_headers = {
+#             "Authorization": f"Bearer {GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+#         payload = {
+#             "model": "llama-3.1-8b-instant",
+#             "messages": [
+#                 {
+#                     "role": "system", 
+#                     "content": (
+#                         "أنت خبير برمجي. وظيفتك شرح منطق الكود بأسلوب 'المختصر المفيد'. "
+#                         "تجنب التحية، وتجنب شرح الأمور البديهية، ولا تضع أمثلة استخدام إلا إذا طلبت منك. "
+#                         "ركز فقط على وظيفة الكود الأساسية ."
+#                     )
+#                 },
+#                 {
+#                     "role": "user", 
+#                     "content": f"اشرح هذا الكود باختصار شديد:\n\n{user_code}"
+#                 }
+#             ],
+#             "temperature": 0.3 # تقليل العشوائية ليظل الرد دقيقاً ومختصراً
+#         }
+#         # 3. إرسال الطلب لـ Groq
+#         try:
+#             response = requests.post(url, json=payload, headers=groq_headers)
+#             result = response.json()
+            
+#             if 'choices' in result:
+#                 explanation = result['choices'][0]['message']['content']
+#                 return Response({
+#                     "explanation": explanation,
+#                     "status": "success"
+#                 }, status=status.HTTP_200_OK)
+#             else:
+#                 return Response({
+#                     "error": "Failed to get explanation from AI",
+#                     "details": result
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({
+#                 "error": "Connection error",
+#                 "details": str(e)
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+
+
+####################################################################################
+class GeneratePostAPIView(APIView):
+    """
+   بيكتشف اللغة تلقائياً وبيولد منشور احترافي بناءً على المحتوى
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # 1. استلام محتوى المنشور (سواء كان فكرة أو مسودة)
+        user_content = request.data.get("content")
+
+        if not user_content:
+            return Response({"error": "No content provided to enhance"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. التعليمات الذكية (توجيه الموديل ليرد بنفس اللغة تلقائياً)
+        system_instruction = (
+    "You are a top-tier Tech Influencer and Social Media Strategist. "
+    "Your goal is to turn boring ideas into 'VIRAL' posts. "
+    "STYLE RULES: "
+    "1. Hook the reader with a powerful first sentence. "
+    "2. Use a professional yet 'enthusiastic' and modern tone. "
+    "3. Keep it exactly 5 punchy sentences. "
+    "4. NO robot talk (e.g., avoid 'In conclusion', 'It is important to'). "
+    "5. Use the SAME LANGUAGE as the user (Arabic or English).no russian.no other language "
+    "6. NO translations, NO explanations. Just the post."
+)
+
+
+        # 3. إعدادات Groq
+        GROQ_API_KEY = "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"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama-3.1-8b-instant",
+             #"model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Enhance this content into a 5-sentence post: {user_content}"}
+            ],
+            "temperature": 0.5,
+            "max_tokens":300
+
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers,timeout=20)
+            result = response.json()
+            
+            if 'choices' in result:
+                enhanced_post = result['choices'][0]['message']['content'].strip()
+                
+                return Response({
+                    "enhanced_post": enhanced_post,
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "AI Generation failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+##################################################################################################
+class ImprovePostAPIView(APIView):
+    """
+    لتحسين صياغة النص وجعله أكثر احترافية 
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # 1. استلام النص المراد تحسينه
+        user_text = request.data.get("content")
+
+        if not user_text:
+            return Response({"error": "No text provided to improve"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. التعليمات (البرومبت الخاص بالتحسين فقط)
+        system_instruction = (
+            "You are a professional multilingual editor. "
+            "Task: Rewrite the user's text to be clearer, more professional, and grammatically correct. "
+            "STRICT RULES: "
+            "1. Keep the EXACT same meaning. "
+            "2. Respond ONLY with the improved text in the SAME LANGUAGE as the input. "
+            "3. Do NOT add hashtags, do NOT add explanations, and NO introductory text. "
+            "4. If the input is Arabic, the output MUST be professional Arabic. "
+            "5. If the input is English, the output MUST be professional English."
+            "6. NO Russian, NO other languages."
+        )
+        GROQ_API_KEY = "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"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Rewrite this professionally: {user_text}"}
+            ],
+            "temperature": 0.3, # حرارة أقل لضمان عدم "تأليف" كلام جديد
+            "max_tokens": 300
+        }
+
+        try:
+            # طلب التحسين
+            response = requests.post(url, json=payload, headers=headers, timeout=20)
+            result = response.json()
+            
+            if 'choices' in result:
+                improved_text = result['choices'][0]['message']['content'].strip()
+                
+                return Response({
+                    "improved_text": improved_text,
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "AI Improvement failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+########################################################################
+class ClassifyPostAPIView(APIView):
+    """
+    API لتصنيف المنشور إلى فئات محددة (Question, Project, Problem, Information, Article)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_content = request.data.get("content")
+
+        if not user_content:
+            return Response({"error": "No content provided to classify"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. التعليمات الصارمة للتصنيف
+        # system_instruction = (
+        #     "You are a highly accurate content classifier. "
+        #     "Task: Classify the user's text into ONLY ONE of these categories: "
+        #     "[question, project, problem, information, article]. "
+        #     "STRICT RULES: "
+        #     "1. Response MUST be exactly one word from the list. "
+        #     "2. NO explanations, NO punctuation, NO introductory text. "
+        #     "3. Output MUST be in English lowercase."
+        # )
+        system_instruction = (
+              "You are a linguistic expert specialized in classifying tech content. "
+             "Classify the text ONLY into: [question, project, problem, information, article]. "
+             "GUIDELINES: "
+             "1. [question]: If it asks something directly or uses words like 'أتساءل', 'هل', 'كيف', 'ما هو'. "
+             "2. [article]: If it's a long, analytical, or formal text discussing trends, economy, or future (like the Middle East example). "
+             "3. [information]: Only for short, direct facts (e.g., 'Python is easy'). "
+             "4. [problem]: If the user is stuck, reporting an error, or needs help. "
+             "5. [project]: If the user says 'I built', 'I finished', 'My work'. "
+         "STRICT: Respond with ONE word only. No punctuation. No explanations."
+        )
+#         system_instruction = (
+#     "You are an expert logical analyzer for developer content. "
+#     "To classify, follow this hierarchy: "
+#     "1. If there is ANY error, bug, or 'معضلة/مشكلة', classify as [problem]. "
+#     "2. If there is ANY 'تساؤل' or '؟' or a request for opinion, classify as [question]. "
+#     "3. If the user mentions 'عملت/طورت/مشروعي', classify as [project]. "
+#     "4. If it's a long educational/opinion piece without a specific problem, classify as [article]. "
+#     "5. Only use [information] for short, dry facts. "
+#     "PRIORITY: problem > question > project > article > information. "
+#     "Respond with ONLY ONE WORD."
+# )
+
+        GROQ_API_KEY = "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"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Classify this text: {user_content}"}
+            ],
+            "temperature": 0.1, # حرارة شبه صفرية لضمان الدقة وعدم التشتت
+            "max_tokens": 10    # بدنا كلمة وحدة بس، فـ 10 توكن كافيين جداً
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            result = response.json()
+            
+            if 'choices' in result:
+                category = result['choices'][0]['message']['content'].strip().lower()
+                
+                # تنظيف النتيجة من أي نقطة أو فراغ إضافي
+                category = "".join(filter(str.isalpha, category))
+                
+                return Response({
+                    "category": category,
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Classification failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

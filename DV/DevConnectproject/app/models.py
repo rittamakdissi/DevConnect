@@ -1,6 +1,5 @@
 from django.db import models
 from django.core.validators import RegexValidator, MinValueValidator
-from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
@@ -15,8 +14,8 @@ class User(AbstractUser):
 
     # Validators
     username_validator = RegexValidator(
-        regex=r'^[A-Za-z_][A-Za-z0-9_]{2,29}$',
-        message="username must start with letter or _ only, no spaces or special characters, length between 3 and 30.")
+        regex=r'^[A-Za-z_][A-Za-z0-9_]{2,19}$',
+        message="username must start with letter or _ only, no spaces or special characters, length between 3 and 20.")
     
 
     phone_validator = RegexValidator(
@@ -44,8 +43,8 @@ class User(AbstractUser):
         blank=True,
         null=True
     )
-    specialization = models.CharField(max_length=200, blank=True, null=True)
-    bio = models.TextField(blank=True, null=True)
+    specialization = models.CharField(max_length=80, blank=True, null=True)
+    bio = models.TextField(max_length=100,blank=True, null=True)
     personal_photo = models.ImageField(upload_to="avatars/", blank=True, null=True)
     links = models.TextField(blank=True, null=True)
     #links = models.JSONField(default=dict, blank=True, null=True)
@@ -103,15 +102,14 @@ class Post(models.Model):
     # الوسوم يلي الذكاء رح يولدها
     tags = models.JSONField(default=list, blank=True)
 
-    # شرح الذكاء للكود
-    ai_code_summary = models.TextField(blank=True, null=True)
+    #لغة الكود
     code_language = models.CharField(max_length=50, blank=True, null=True)
 
-    # نص محسّنء
-    ai_improved = models.TextField(blank=True, null=True)
-    
-    # توليد منشور
-    ai_generated = models.TextField(null=True, blank=True)
+
+    #ai_code_summary = models.TextField(blank=True, null=True)
+    #ai_improved = models.TextField(blank=True, null=True)
+    #ai_generated = models.TextField(null=True, blank=True)
+
 
     # نوع المنشور — الذكاء هو يلي يختارو
     post_type = models.CharField(
@@ -486,7 +484,8 @@ class SearchHistory(models.Model):
 class PasswordResetCode(models.Model):
     email = models.EmailField()
     code = models.CharField(max_length=6)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)# للتأكد من الـ 10 دقائق
+    attempts = models.IntegerField(default=0) # لحساب المحاولات الفاشلة
 
     def __str__(self):
         return f"Code for {self.email}: {self.code}"  
