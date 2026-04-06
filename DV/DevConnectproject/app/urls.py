@@ -38,17 +38,6 @@ urlpatterns = [
     # Unfollow a user
     path("unfollow/<int:user_id>/", UnfollowView.as_view(), name="unfollow"),
 
-
-
-
-
-
-
-
-
-
-
-
     # React to a post
     path("posts/<int:post_id>/react/", ReactToPostView.as_view(), name="react-post"),
 

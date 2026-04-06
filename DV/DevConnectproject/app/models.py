@@ -85,7 +85,7 @@ class Post(models.Model):
         ("project", "Project"),
         ("problem", "Problem"),
         ("information", "Information"),
-        ("artical", "Artical"),
+        ("article", "Article"),
     )
 
     user = models.ForeignKey(

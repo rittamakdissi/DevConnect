@@ -1710,31 +1710,80 @@ class VerifyOTPView(APIView):
 
 #  توليد التاغات بالذكاء
 class SuggestTagsView(APIView):
-    "شغالة"
-    permission_classes = [IsAuthenticated]
+    # "شغالة"
+    # permission_classes = [IsAuthenticated]
+
+    # def post(self, request):
+    #     # 1. استلام النص من الفرونت إند (محتوى المنشور اللي لسه عم ينكتب)
+    #     content = request.data.get('content', '')
+
+    #     if not content:
+    #         return Response({'error': 'Please write some content first'}, status=400)
+
+    #     # 2. رابط الكولاب السحري (تأكدي أنه الرابط الفعال حالياً)
+    #     colab_url = "https://uncheapened-multimacular-gwyneth.ngrok-free.dev/suggest-tags"
+
+    #     try:
+    #         # 3. نرسل النص للكولاب ونجلب التاغات
+    #         response = requests.get(colab_url, params={"text": content}, timeout=10)
+    #         data = response.json()
+            
+    #         # 4. نرجع التاغات للفرونت إند عشان تظهر للمستخدم
+    #         return Response({
+    #             "suggested_tags": data.get('suggested_tags', [])
+    #         }, status=200)
+
+    #     except Exception as e:
+    #         return Response({'error': 'AI Assistant is offline'}, status=503)
 
     def post(self, request):
-        # 1. استلام النص من الفرونت إند (محتوى المنشور اللي لسه عم ينكتب)
         content = request.data.get('content', '')
 
         if not content:
-            return Response({'error': 'Please write some content first'}, status=400)
+            return Response({"error": "المحتوى فارغ، لا يمكن توليد تاغات."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. رابط الكولاب السحري (تأكدي أنه الرابط الفعال حالياً)
-        colab_url = "https://uncheapened-multimacular-gwyneth.ngrok-free.dev/suggest-tags"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        # البرومبت "المركّز" لاستخراج التاغات الجوهرية فقط
+        system_instruction = (
+            "You are a professional content classifier. Extract only the most relevant and important technical tags from the content. "
+            "Rules: "
+            "1. Return only a single line of tags separated by commas. "
+            "2. No hashtags (#), no numbers, no explanations. "
+            "3. Focus on core technologies, languages, and main topics. "
+            "4. Maximum 5 to 7 high-quality tags. "
+            "5. If the content is in Arabic, provide tags in English. If English,also in English."
+        )
+
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Extract the most important tags from this text:\n\n{content}"}
+            ],
+            "temperature": 0.3 # حرارة منخفضة لضمان الدقة وعدم "التأليف"
+        }
+
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
         try:
-            # 3. نرسل النص للكولاب ونجلب التاغات
-            response = requests.get(colab_url, params={"text": content}, timeout=10)
-            data = response.json()
+            response = requests.post(url, headers=headers, json=payload,timeout=20)
+            response.raise_for_status()
+            result = response.json()
+            tags_string = result['choices'][0]['message']['content'].strip()
             
-            # 4. نرجع التاغات للفرونت إند عشان تظهر للمستخدم
+            # تحويل النص لـ List عشان الـ Frontend يرتاح بمعالجتها
+            tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+
             return Response({
-                "suggested_tags": data.get('suggested_tags', [])
-            }, status=200)
+                "tags": tags_list
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({'error': 'AI Assistant is offline'}, status=503)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 ###############################################################################################
 
@@ -1742,7 +1791,7 @@ class SuggestTagsView(APIView):
 
 #هاد منبعتلو اللغة تبعت المستخدم 
 class ExplainCodeAPIView(APIView):
-    "شغالة"
+    "شغالة" "ولكن البرومت تبع العربي بدو تعدييييل منيح "
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -1752,29 +1801,36 @@ class ExplainCodeAPIView(APIView):
 
         if not user_code:
             return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-
         if user_lang == 'ar':
-            system_instruction = (
-                "أنت خبير برمجي محترف. اشرح منطق الكود بأسلوب 'المختصر المفيد' باللغة العربية التقنية. "
-                "تجنب التحية والشرح البديهي، وركز على وظيفة الكود."
-            )
-            user_prompt = f"اشرح هذا الكود باختصار شديد:\n\n{user_code}"
+           system_instruction = (
+    "أنت Senior Backend Developer تشرح الكود بأسلوب بشري احترافي واضح. "
+    "ابدأ بجملة قصيرة تعطي فكرة الكود أو وظيفته بشكل مباشر بدون استخدام أي عناوين مثل (الهدف). "
+    "بعدها اكتب فقرة واحدة تشرح اللوجيك بشكل تقني، . "
+    "اكتب وكأنك تشرح لزميل مبرمج وليس كأنك تكتب مقال."
+    "استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي بدون ما تخرب ترتيب الجملة. "
+    "ركّز على كيف الكود يشتغل، شو بيعمل، وليش. "
+    "تجنب الحشو والمقدمات العامة وخليك مباشر."
+    "لا تكتب باللغة الروسية ابدا"
+          )
+
+           user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
         else:
             system_instruction = (
-                "You are a professional software expert. Explain the code logic in a 'concise and direct' manner in English. "
-                "Avoid greetings and obvious details, focus on the main function "
+                "You are a Senior Backend Developer. Explain the code in one focused technical paragraph starting with the Goal. "
+                "STRICT RULES: "
+                "1. Start with (Goal: [Code Function]) then proceed to technical logic. "
+                "2. Use professional dev language. NO 'In this code' or 'There is a class'. "
+                "3. NO Russian, NO markdown stars (*), NO bullet points. "
+                "4. Keep it concise and direct."
             )
-            user_prompt = f"Explain this code very briefly:\n\n{user_code}"
-
-
-        GROQ_API_KEY = "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" # حطي مفتاحك هون
+            user_prompt = f"Give me the goal and the logic of this code in a professional dev style:\n\n{user_code}"
         url = "https://api.groq.com/openai/v1/chat/completions"
-        
+ 
         headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
+         
         
         payload = {
             "model": "llama-3.1-8b-instant",
@@ -1898,11 +1954,10 @@ class GeneratePostAPIView(APIView):
 
 
         # 3. إعدادات Groq
-        GROQ_API_KEY = "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"
         url = "https://api.groq.com/openai/v1/chat/completions"
         
         headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
         
@@ -1961,11 +2016,10 @@ class ImprovePostAPIView(APIView):
             "5. If the input is English, the output MUST be professional English."
             "6. NO Russian, NO other languages."
         )
-        GROQ_API_KEY = "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"
         url = "https://api.groq.com/openai/v1/chat/completions"
         
         headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
         
@@ -2045,11 +2099,10 @@ class ClassifyPostAPIView(APIView):
 #     "Respond with ONLY ONE WORD."
 # )
 
-        GROQ_API_KEY = "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"
         url = "https://api.groq.com/openai/v1/chat/completions"
         
         headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
         

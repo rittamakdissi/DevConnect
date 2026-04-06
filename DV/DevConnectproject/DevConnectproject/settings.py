@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+from datetime import timedelta
 from pathlib import Path
 import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -96,11 +96,10 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated', 
     ),
 }
-from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # التوكن بضل شغال ساعة
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=100),    # بعد ساعة لازم يعمل ريفريش
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=10), # التوكن بضل شغال يوم
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),    # بعد اسبوع لازم يعمل ريفريش
     'ROTATE_REFRESH_TOKENS': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY, # بيستخدم مفتاح مشروعك السري للتشفير
@@ -166,3 +165,11 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'rittamakdissi@gmail.com'  # اكتبي إيميلك الحقيقي هنا
 EMAIL_HOST_PASSWORD ='flrluagyagpkinse'  # الـ 16 حرف اللي طلعناهم من جوجل (بدون فراغات)
 DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
+
+
+
+
+from decouple import config
+
+# هذا السطر بيقرأ المفتاح من ملف .env
+GROQ_API_KEY = config('GROQ_API_KEY')

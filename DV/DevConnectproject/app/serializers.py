@@ -539,8 +539,79 @@ class MediaSerializer(serializers.ModelSerializer):
         return None
 
 
+# class PostCreateSerializer(serializers.ModelSerializer):
+#     # استقبال صور (قائمة) عند الإنشاء — write_only لأننا نعرض الصور عبر MediaSerializer بعد الحفظ
+#     images = serializers.ListField(
+#         child=serializers.ImageField(),
+#         write_only=True,
+#         required=False,
+#         allow_empty=True,
+#     )
+
+#     # الحقول الخاصة بالـ AI (يمكن أن يضعها backend/worker لاحقًا أو يدخِلها المستخدم)
+#     tags = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+#     #ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+#     #ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+#     #ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+#     post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
+
+#     code_language = serializers.CharField(required=False, allow_blank=True, allow_null=True) # جديد
+
+#     # حقول للـ response
+#     media = MediaSerializer(many=True, read_only=True, source="images")
+
+#     class Meta:
+#         model = Post
+#         fields = [
+#             "id",
+#             "content",
+#             "code",
+#             "code_language",
+#             "tags",
+#             #"ai_code_summary",
+#            # "ai_improved",
+#            # "ai_generated",
+#             "post_type",
+#             "created_at",
+#             "images",   # للـ write (رفع)
+#             "media",    # للـ read (روابط الصور بعد الحفظ)
+#         ]
+#         read_only_fields = ["id", "created_at", "media"]
+
+
+#     @transaction.atomic
+#     def create(self, validated_data):
+#         # 1) أخرج الصور من البيانات المؤقتة
+#         images = validated_data.pop("images", None)
+
+#         # 2) جلب المستخدم من الـ context (مفترض مصادق)
+#         request = self.context.get("request")
+#         user = getattr(request, "user", None)
+#         if user is None or not user.is_authenticated:
+#             raise serializers.ValidationError("Authentication required to create a post.")
+
+#         # 3) أنشئ البوست
+#         post = Post.objects.create(user=user, **validated_data)
+
+#         # 4) إذا في صور — انشئ Media لكل صورة
+#         #    دعم عملي: إذا self.context['request'].FILES يحتوي ملفات تحت 'images', نستخدمها أيضاً
+#         if images is None:
+#             # محاولة قراءة الملفات مباشرة من request.FILES (key = 'images')
+#             if request is not None:
+#                 files = request.FILES.getlist("images")
+#                 images = files if files else None
+        
+#         if images:
+#             media_objs = []
+#             for img in images:
+#                 m = Media.objects.create(post=post, uploaded_by=user, image=img)
+#                 media_objs.append(m)
+
+#         return post
+
+
 class PostCreateSerializer(serializers.ModelSerializer):
-    # استقبال صور (قائمة) عند الإنشاء — write_only لأننا نعرض الصور عبر MediaSerializer بعد الحفظ
+    # استقبال صور (قائمة) عند الإنشاء
     images = serializers.ListField(
         child=serializers.ImageField(),
         write_only=True,
@@ -548,16 +619,12 @@ class PostCreateSerializer(serializers.ModelSerializer):
         allow_empty=True,
     )
 
-    # الحقول الخاصة بالـ AI (يمكن أن يضعها backend/worker لاحقًا أو يدخِلها المستخدم)
+    # الحقول الأخرى
     tags = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
-    #ai_code_summary = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    #ai_improved = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    #ai_generated = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    code_language = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     post_type = serializers.ChoiceField(choices=Post.POST_TYPES, required=False, allow_null=True)
 
-    code_language = serializers.CharField(required=False, allow_blank=True, allow_null=True) # جديد
-
-    # حقول للـ response
+    # حقول للـ response (عرض الصور بعد الحفظ)
     media = MediaSerializer(many=True, read_only=True, source="images")
 
     class Meta:
@@ -568,46 +635,70 @@ class PostCreateSerializer(serializers.ModelSerializer):
             "code",
             "code_language",
             "tags",
-            #"ai_code_summary",
-           # "ai_improved",
-           # "ai_generated",
             "post_type",
             "created_at",
-            "images",   # للـ write (رفع)
-            "media",    # للـ read (روابط الصور بعد الحفظ)
+            "images",  # للرفع (Write)
+            "media",   # للعرض (Read)
         ]
         read_only_fields = ["id", "created_at", "media"]
 
-
     @transaction.atomic
     def create(self, validated_data):
-        # 1) أخرج الصور من البيانات المؤقتة
+        # 1) إخراج الصور من البيانات
         images = validated_data.pop("images", None)
 
-        # 2) جلب المستخدم من الـ context (مفترض مصادق)
+        # 2) جلب المستخدم من الـ context
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             raise serializers.ValidationError("Authentication required to create a post.")
 
-        # 3) أنشئ البوست
+        # 3) إنشاء البوست
         post = Post.objects.create(user=user, **validated_data)
 
-        # 4) إذا في صور — انشئ Media لكل صورة
-        #    دعم عملي: إذا self.context['request'].FILES يحتوي ملفات تحت 'images', نستخدمها أيضاً
-        if images is None:
-            # محاولة قراءة الملفات مباشرة من request.FILES (key = 'images')
-            if request is not None:
-                files = request.FILES.getlist("images")
-                images = files if files else None
+        # 4) جلب الصور إذا لم تكن في validated_data (من request.FILES)
+        if images is None and request:
+            files = request.FILES.getlist("images")
+            images = files if files else None
 
+        # 5) معالجة الصور، ضغطها، وحفظها
         if images:
-            media_objs = []
+            media_objs = [] # القائمة التي طلبتِ إبقاءها
             for img in images:
-                m = Media.objects.create(post=post, uploaded_by=user, image=img)
-                media_objs.append(m)
+                try:
+                    # فتح الصورة ومعالجتها (الضغط والتحسين)
+                    pil_image = Image.open(img)
+                    
+                    # تحويل النمط لـ RGB لضمان التوافق مع JPEG
+                    if pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
+
+                    # تصغير الأبعاد (Resize) لـ 1080 بكسل كحد أقصى
+                    pil_image.thumbnail((1080, 1080))
+
+                    # الحفظ في ذاكرة مؤقتة بضغط 70%
+                    output = io.BytesIO()
+                    pil_image.save(output, format='JPEG', quality=70, optimize=True)
+                    output.seek(0)
+
+                    # إنشاء ملف جديد مضغوط
+                    optimized_image = ContentFile(output.read(), name=img.name)
+                    
+                    # إنشاء كائن الميديا وحفظه
+                    m = Media.objects.create(
+                        post=post, 
+                        uploaded_by=user, 
+                        image=optimized_image
+                    )
+                    media_objs.append(m)
+                
+                except Exception:
+                    # في حال حدوث خطأ في المعالجة، نحفظ الصورة الأصلية كخيار بديل
+                    m = Media.objects.create(post=post, uploaded_by=user, image=img)
+                    media_objs.append(m)
 
         return post
+
 
 
 #عرض البوست كاملاً
