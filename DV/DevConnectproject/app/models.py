@@ -119,7 +119,7 @@ class Post(models.Model):
         null=True,
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
   
@@ -162,6 +162,7 @@ class Post(models.Model):
         indexes = [
             models.Index(fields=["content"]),
             models.Index(fields=["tags"]),
+            models.Index(fields=["-created_at"]),
         ]
 
 

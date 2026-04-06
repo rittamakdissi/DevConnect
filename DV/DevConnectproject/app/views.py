@@ -812,15 +812,17 @@ class FeedView(APIView):
 
         # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
         all_ids = following_posts_ids + interest_posts_ids + trending_posts_ids
-        final_posts = Post.objects.filter(id__in=all_ids).distinct()
-
+        final_posts = Post.objects.filter(id__in=all_ids)\
+            .select_related('user')\
+            .prefetch_related('images')\
+            .distinct()\
+            .order_by('-created_at')
         # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
         post_type = request.GET.get("type")
         if post_type:
             final_posts = final_posts.filter(post_type=post_type)
 
         # الترتيب الزمني النهائي (الأحدث أولاً)
-        final_posts = final_posts.order_by('-created_at')
 
      # هاد في حال حبينا دائما نجيب منشورات الاشخاص يلي منتابعن بالاول
         # final_posts = final_posts.annotate(
@@ -830,15 +832,118 @@ class FeedView(APIView):
         #     output_field=IntegerField(),
         #     )
         # ).order_by('priority', '-created_at')
+        paginator = PageNumberPagination()
+        paginator.page_size = 10  # عرض 10 بوستات في كل صفحة
         
+        # تنفيذ التقطيع (Slicing) بناءً على رقم الصفحة في الـ URL
+        result_page = paginator.paginate_queryset(final_posts, request)
 
-        # 5. حقن سبب الظهور في كل كائن بوست ليعالجه السيريالايزر
-        for post in final_posts:
+        # 5. حقن سبب الظهور في الكائنات المقطعة فقط (لتحسين الأداء)
+        for post in result_page:
             post.suggestion_reason = reasons_map.get(post.id, "")
 
-        # 6. إرسال البيانات للسيريالايزر والرد
-        serializer = PostSerializer(final_posts, many=True, context={'request': request})
-        return Response(serializer.data)
+        # 6. السيريالايزر والرد باستخدام paginator.get_paginated_response
+        serializer = PostSerializer(result_page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
+
+#هاد بدون الpagination
+# class FeedView(APIView):
+#     "شغالة"
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         user = request.user
+#         
+#         # 1. جلب IDs الأشخاص المتابَعين
+#         following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+
+#         # 2. استخراج التاغات المهتمة فيها بناءً على آخر 10 تفاعلات
+#         # مع استثناء البوستات يلي بتفاعل فيها ب غير مفيد
+#         user_reactions = Reaction.objects.filter(user=user)\
+#          .exclude(reaction_type='not_useful')\
+#           .select_related('post')\
+#           .order_by('-created_at')[:10] 
+
+
+#         interested_tags = []
+#         for r in user_reactions:
+#             if r.post.tags:
+#                 tags_list = r.post.tags 
+#                 if isinstance(tags_list, list):
+#                     interested_tags.extend(tags_list)
+#                 else:
+#                     # تحسباً لو كانت التاغات مخزنة كنص مفصول بفاصلة
+#                     tags_list = str(r.post.tags).replace(',', ' ').split()
+#                     interested_tags.extend(tags_list)
+#         
+#         # استخدام Counter لجلب أكثر 3 تاغات تكراراً (الأكثر اهتماماً)
+#         tag_counts = Counter(interested_tags)
+#         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
+
+#         # 3. تجميع الـ IDs وتحديد الأسباب في قاموس (reasons_map)
+#         reasons_map = {}
+
+#         # أ. بوستات المتابعين
+#         following_posts_ids = list(Post.objects.filter(user_id__in=following_ids).values_list('id', flat=True))
+#         for p_id in following_posts_ids:
+#             reasons_map[p_id] = "Following"
+
+#         # ب. بوستات الاهتمامات
+#         interest_posts_ids = []
+#         if unique_tags: 
+#             tag_query = Q()
+#             for tag in unique_tags:
+#                 tag_query |= Q(tags__icontains=tag)
+#             
+#             interest_posts_ids = list(Post.objects.filter(tag_query)
+#                 .exclude(user_id__in=following_ids)
+#                 .exclude(user=user)
+#                 .values_list('id', flat=True)[:10])
+#             
+#             for p_id in interest_posts_ids:
+#                 if p_id not in reasons_map: # لا نغير السبب إذا كان البوست أصلاً من المتابعين
+#                     reasons_map[p_id] = "Based on your interests" #Suggested for you
+
+#         # ج. بوستات الترند (أكثر تفاعل بآخر 3 أيام)
+#         last_3_days = timezone.now() - timedelta(days=3)
+#         trending_posts_ids = list(Post.objects.filter(created_at__gte=last_3_days)
+#             .annotate(reactions_count=Count('reactions'))
+#             .order_by('-reactions_count')
+#             .values_list('id', flat=True)[:10])
+#         
+#         for p_id in trending_posts_ids:
+#             if p_id not in reasons_map: # لا نغير السبب إذا كان موجوداً مسبقاً
+#                 reasons_map[p_id] = "Trending 🔥"
+
+#         # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
+#         all_ids = following_posts_ids + interest_posts_ids + trending_posts_ids
+#         final_posts = Post.objects.filter(id__in=all_ids).distinct()
+
+#         # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
+#         post_type = request.GET.get("type")
+#         if post_type:
+#             final_posts = final_posts.filter(post_type=post_type)
+
+#         # الترتيب الزمني النهائي (الأحدث أولاً)
+#         final_posts = final_posts.order_by('-created_at')
+
+#      # هاد في حال حبينا دائما نجيب منشورات الاشخاص يلي منتابعن بالاول
+#         # final_posts = final_posts.annotate(
+#         #   priority=Case(
+#         #     When(user_id__in=following_ids, then=Value(1)), # المتابعين لهم الأولوية 1
+#         #     default=Value(2),                              # المقترح له الأولوية 2
+#         #     output_field=IntegerField(),
+#         #     )
+#         # ).order_by('priority', '-created_at')
+#         
+
+#         # 5. حقن سبب الظهور في كل كائن بوست ليعالجه السيريالايزر
+#         for post in final_posts:
+#             post.suggestion_reason = reasons_map.get(post.id, "")
+
+#         # 6. إرسال البيانات للسيريالايزر والرد
+#         serializer = PostSerializer(final_posts, many=True, context={'request': request})
+#         return Response(serializer.data)
 
 
 
@@ -856,8 +961,10 @@ class SuggestedUsersView(APIView):
 
         # جلب المرشحين (استثناء النفس ومن أتابعهم)
         following_ids = Follow.objects.filter(follower=current_user).values_list("following_id", flat=True)
-        candidates = User.objects.exclude(id=current_user.id).exclude(id__in=following_ids)
-
+        candidates = User.objects.exclude(id=current_user.id)\
+        .exclude(id__in=following_ids)\
+        .exclude(specialization__isnull=True)\
+        .exclude(specialization="") # استبعاد النصوص الفارغة أيضاً
         scored_users = []      # أصحاب التخصص (Strong/Medium)
         zero_score_users = []  # البعيدين عن التخصص (Fallback)
 

@@ -809,7 +809,8 @@ class PostUpdateSerializer(serializers.ModelSerializer):
 class UserSuggestionSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
-    
+    is_following = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -818,8 +819,15 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
             "personal_photo_url",
             "specialization",
             "followers_count",
+            "is_following",
         ]
-    
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        # إذا كان المستخدم ضيف (غير مسجل دخول) نرجع False
+        if not request or not request.user.is_authenticated:
+            return False
+        return Follow.objects.filter(follower=request.user, following=obj).exists()
+
     def get_personal_photo_url(self, obj):
         request = self.context.get("request")
         if obj.personal_photo and hasattr(obj.personal_photo, "url"):

@@ -136,7 +136,7 @@ urlpatterns = [
     #تحسين محتوى بالكاء
     path('improve-post/',ImprovePostAPIView.as_view(), name='improve-api'),
 
-
+   #تصنيف المنشور بالذكاء
     path('classify-post/', ClassifyPostAPIView.as_view(), name='classify-api'),
 
 
