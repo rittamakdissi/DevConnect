@@ -9,6 +9,12 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+
+import dj_database_url
+from dotenv import load_dotenv
+from decouple import config
+
+load_dotenv()
 from datetime import timedelta
 from pathlib import Path
 import os
@@ -24,8 +30,8 @@ SECRET_KEY = 'django-insecure-is(a*q4nlqru$f_#20(+^8w%o#bxfxl4h=+*)!74fjtbe^ab3c
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
 
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -43,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -75,11 +82,20 @@ AUTH_USER_MODEL = 'app.User'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+# إعدادات الداتابيز الذكية
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        # هنا سيقوم Django بالبحث عن متغير اسمه DATABASE_URL في سيرفر ريندر
+        # إذا لم يجده (يعني أنتِ على اللابتوب)، سيستخدم sqlite كالمعتاد
+        default=f'sqlite:///{os.path.join(BASE_DIR, "db.sqlite3")}',
+        conn_max_age=600
+    )
 }
 # REST_FRAMEWORK = {
 #     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -167,9 +183,16 @@ EMAIL_HOST_PASSWORD ='flrluagyagpkinse'  # الـ 16 حرف اللي طلعنا�
 DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
 
 
+# إعدادات تخزين الصور (Cloudinary)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': config('CLOUDINARY_API_KEY'),
+    'API_SECRET': config('CLOUDINARY_API_SECRET'),
+}
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # إخبار جانجو باستخدام كلوديناري للملفات المرفوعة (Media)
 
 
-from decouple import config
+
 
 # هذا السطر بيقرأ المفتاح من ملف .env
 GROQ_API_KEY = config('GROQ_API_KEY')
