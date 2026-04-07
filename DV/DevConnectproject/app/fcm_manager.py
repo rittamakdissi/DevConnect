@@ -8,8 +8,8 @@ from django.conf import settings
 # تهيئة Firebase (بتتنفذ مرة وحدة لما يشتغل السيرفر)
 # تأكدي إن ملف الـ JSON اللي حملتيه اسمه firebase_key.json وموجود بالمجلد الرئيسي للمشروع
 cred_path = os.path.join(settings.BASE_DIR, 'firebase_key.json')
-cred = credentials.Certificate(cred_path)
-firebase_admin.initialize_app(cred)
+#cred = credentials.Certificate(cred_path)
+#firebase_admin.initialize_app(cred)
 
 def send_push_notification(token, title, body, extra_data=None):
     """
