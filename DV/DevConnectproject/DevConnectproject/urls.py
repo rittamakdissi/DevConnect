@@ -26,24 +26,22 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-
 def create_admin(request):
-    if not User.objects.filter(username='rittamakdissi').exists():
-        # 1. إنشاء المستخدم الأساسي
-        user = User.objects.create_superuser('rittamakdissi', 'rittamakdissi@gmail.com', 'r1i2t3t4a5')
-        
-        # 2. تعبئة الحقول الإضافية (بما أنها Required في المودل)
-        user.first_name = 'Ritta'
-        user.last_name = 'Makdissi'
-        user.age = 23             # ضعي عمركِ الحقيقي هنا
-        user.gender = 'female'     # أو القيمة التي تعتمدينها في المودل
-        user.phone_number = '0991419699'
-        
-        user.save() # حفظ الحقول الجديدة
-        
-        return HttpResponse("Done! User: rittamakdissi created with all fields.")
+    # نستخدم اسم مستخدم جديد أو نتأكد أن القديم غير موجود
+    username = 'rittamakdissi' 
+    if not User.objects.filter(username=username).exists():
+        User.objects.create_superuser(
+            username=username,
+            email='rittamakdissi@gmail.com',
+            password='r1i2t3t4a5', # غيري الباسورد لما تحبين
+            first_name='Ritta',
+            last_name='Makdissi',
+            age=25,               # القيمة التي كانت تنقصنا!
+            gender='female',      # أضيفي باقي الحقول المطلوبة هنا
+            phone_number='0991419699'
+        )
+        return HttpResponse(f"Done! Admin '{username}' created successfully.")
     return HttpResponse("Admin already exists.")
-
 
 
 urlpatterns = [
