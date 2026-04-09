@@ -186,21 +186,37 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 import os
 
 # إعدادات الإيميل الاحترافية
+# import os
+
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_USE_SSL = False
+
+# # قراءة الإيميل والباسورد من ريندر (أو القيم الافتراضية إذا كنتِ تعملين محلياً)
+# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rittamakdissi@gmail.com')
+# EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'flrluagyagpkinse')
+
+# # اسم المرسل
+# DEFAULT_FROM_EMAIL = f'DevConnect <{EMAIL_HOST_USER}>'
+
 import os
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
 
-# قراءة الإيميل والباسورد من ريندر (أو القيم الافتراضية إذا كنتِ تعملين محلياً)
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rittamakdissi@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'flrluagyagpkinse')
+# قراءة الإعدادات من ريندر مع قيم افتراضية للأمان
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 465))  # لاحظي الـ 465 هنا
 
-# اسم المرسل
-DEFAULT_FROM_EMAIL = f'DevConnect <{EMAIL_HOST_USER}>'
+# هذه الأسطر هي الأهم للتوافق مع المنفذ 465
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False') == 'True'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'True') == 'True'
 
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+
+DEFAULT_FROM_EMAIL = f"DevConnect <{EMAIL_HOST_USER}>"
 
 
 # إعدادات تخزين الصور (Cloudinary)
