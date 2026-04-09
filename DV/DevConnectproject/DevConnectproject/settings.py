@@ -174,14 +174,33 @@ STATICFILES_STORAGE = 'whitenoise.storage.StaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # إعدادات إرسال الإيميل عبر Gmail
+#EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_USE_SSL = False
+# EMAIL_HOST_USER = 'rittamakdissi@gmail.com'  # اكتبي إيميلك الحقيقي هنا
+# EMAIL_HOST_PASSWORD ='flrluagyagpkinse'  # الـ 16 حرف اللي طلعناهم من جوجل (بدون فراغات)
+# DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
+
+import os
+
+# إعدادات الإيميل الاحترافية
+import os
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-EMAIL_HOST_USER = 'rittamakdissi@gmail.com'  # اكتبي إيميلك الحقيقي هنا
-EMAIL_HOST_PASSWORD ='flrluagyagpkinse'  # الـ 16 حرف اللي طلعناهم من جوجل (بدون فراغات)
-DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
+
+# قراءة الإيميل والباسورد من ريندر (أو القيم الافتراضية إذا كنتِ تعملين محلياً)
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rittamakdissi@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'flrluagyagpkinse')
+
+# اسم المرسل
+DEFAULT_FROM_EMAIL = f'DevConnect <{EMAIL_HOST_USER}>'
+
 
 
 # إعدادات تخزين الصور (Cloudinary)
