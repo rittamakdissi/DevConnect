@@ -26,27 +26,27 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-def create_admin(request):
-    # نستخدم اسم مستخدم جديد أو نتأكد أن القديم غير موجود
-    username = 'rittamakdissi' 
-    if not User.objects.filter(username=username).exists():
-        User.objects.create_superuser(
-            username=username,
-            email='rittamakdissi@gmail.com',
-            password='r1i2t3t4a5', # غيري الباسورد لما تحبين
-            first_name='Ritta',
-            last_name='Makdissi',
-            age=25,               # القيمة التي كانت تنقصنا!
-            gender='female',      # أضيفي باقي الحقول المطلوبة هنا
-            phone_number='0991419699'
-        )
-        return HttpResponse(f"Done! Admin '{username}' created successfully.")
-    return HttpResponse("Admin already exists.")
+# def create_admin(request):
+#     # نستخدم اسم مستخدم جديد أو نتأكد أن القديم غير موجود
+#     username = 'rittamakdissi' 
+#     if not User.objects.filter(username=username).exists():
+#         User.objects.create_superuser(
+#             username=username,
+#             email='rittamakdissi@gmail.com',
+#             password='r1i2t3t4a5', # غيري الباسورد لما تحبين
+#             first_name='Ritta',
+#             last_name='Makdissi',
+#             age=25,               # القيمة التي كانت تنقصنا!
+#             gender='female',      # أضيفي باقي الحقول المطلوبة هنا
+#             phone_number='0991419699'
+#         )
+#         return HttpResponse(f"Done! Admin '{username}' created successfully.")
+#     return HttpResponse("Admin already exists.")
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('make-me-admin/', create_admin), 
+   # path('make-me-admin/', create_admin), 
 
     path('',include('app.urls')),
    # path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
@@ -55,15 +55,6 @@ urlpatterns = [
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-from django.contrib import admin
-
-# هذه هي الدالة (الوظيفة) التي ستنشئ الحساب
-def create_admin(request):
-    if not User.objects.filter(username='rita_dev').exists(): # غيرت الاسم لـ rita_dev
-        User.objects.create_superuser('rita_dev', 'rita@example.com', 'Rita@2026')
-        return HttpResponse("Done! User: rita_dev, Pass: Rita@2026")
-    return HttpResponse("Admin already exists.")
 
 
     
