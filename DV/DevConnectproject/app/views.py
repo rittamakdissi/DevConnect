@@ -1756,8 +1756,8 @@ class SendOTPView(APIView):
             send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email],html_message=html_message)
             return Response({"message": "Verification code has been sent to your email.Please check your inbox."}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"error": "Failed to send email. Please check your connection or settings."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
-
+           # return Response({"error": "Failed to send email. Please check your connection or settings."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+            return Response({"error": str(e)}, status=500)
 
 # التحقق من صحة الكود وتغيير كلمة المرور
 class VerifyOTPView(APIView):
