@@ -2241,3 +2241,5 @@ class ClassifyPostAPIView(APIView):
 
         except Exception as e:
             return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            

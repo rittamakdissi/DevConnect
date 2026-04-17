@@ -201,44 +201,66 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
 
 #          }
 
+# class UserPhotoUpdateSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = User
+#         fields = ['personal_photo']
+
+#     def validate_personal_photo(self, value):
+#         #  التحقق من الحجم (5 ميغابايت)
+#         limit = 5 * 1024 * 1024  
+#         if value.size > limit:
+#             raise ValidationError("Photo size is too big.It must be under 5MB")
+#         return value
+
+#     def update(self, instance, validated_data):
+#         # حذف الصورة القديمة من السيرفر قبل حفظ الجديدة
+#         new_photo = validated_data.get('personal_photo')
+#         if new_photo:
+#             if instance.personal_photo:
+#                 instance.personal_photo.delete(save=False)
+
+#             # ضغط وتحسين الصورة قبل الحفظ
+#             img = Image.open(new_photo)
+            
+#             # تحويلها لـ RGB إذا كانت بصيغة أخرى (مثل RGBA) لضمان التوافق
+#             if img.mode != 'RGB':
+#                 img = img.convert('RGB')
+
+#             # تغيير الحجم  لجعلها أخف)
+#             img.thumbnail((800, 800)) 
+
+#             output = io.BytesIO()
+#             img.save(output, format='JPEG', quality=70) # تقليل الجودة لـ 70
+#             output.seek(0)
+
+#             # استبدال الصورة الأصلية بالمضغوطة
+#             content_file = ContentFile(output.read(), name=new_photo.name)
+#             validated_data['personal_photo'] = content_file
+
+#         return super().update(instance, validated_data)
 class UserPhotoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['personal_photo']
 
     def validate_personal_photo(self, value):
-        #  التحقق من الحجم (5 ميغابايت)
+        # التحقق من الحجم (5 ميغابايت)
         limit = 5 * 1024 * 1024  
         if value.size > limit:
-            raise ValidationError("Photo size is too big.It must be under 5MB")
+            raise ValidationError("Photo size is too big. It must be under 5MB")
         return value
 
     def update(self, instance, validated_data):
-        # حذف الصورة القديمة من السيرفر قبل حفظ الجديدة
         new_photo = validated_data.get('personal_photo')
+        
         if new_photo:
-            if instance.personal_photo:
-                instance.personal_photo.delete(save=False)
-
-            # ضغط وتحسين الصورة قبل الحفظ
-            img = Image.open(new_photo)
+            # Cloudinary يتكفل بحذف الصورة القديمة تلقائياً إذا كانت الإعدادات صحيحة
+            # سنقوم فقط بتحديث الحقل وحفظ الـ Instance
+            instance.personal_photo = new_photo
+            instance.save()
             
-            # تحويلها لـ RGB إذا كانت بصيغة أخرى (مثل RGBA) لضمان التوافق
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-
-            # تغيير الحجم  لجعلها أخف)
-            img.thumbnail((800, 800)) 
-
-            output = io.BytesIO()
-            img.save(output, format='JPEG', quality=70) # تقليل الجودة لـ 70
-            output.seek(0)
-
-            # استبدال الصورة الأصلية بالمضغوطة
-            content_file = ContentFile(output.read(), name=new_photo.name)
-            validated_data['personal_photo'] = content_file
-
-        return super().update(instance, validated_data)
+        return instance    
 ####################################################################################################
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
