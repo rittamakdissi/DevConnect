@@ -3,11 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from .models import *
 from django.db import transaction
-from django.conf import settings
 from django.core.exceptions import ValidationError
-from PIL import Image
-import io
-from django.core.files.base import ContentFile
 
 
 User = get_user_model()
@@ -201,66 +197,19 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
 
 #          }
 
-# class UserPhotoUpdateSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = User
-#         fields = ['personal_photo']
 
-#     def validate_personal_photo(self, value):
-#         #  التحقق من الحجم (5 ميغابايت)
-#         limit = 5 * 1024 * 1024  
-#         if value.size > limit:
-#             raise ValidationError("Photo size is too big.It must be under 5MB")
-#         return value
-
-#     def update(self, instance, validated_data):
-#         # حذف الصورة القديمة من السيرفر قبل حفظ الجديدة
-#         new_photo = validated_data.get('personal_photo')
-#         if new_photo:
-#             if instance.personal_photo:
-#                 instance.personal_photo.delete(save=False)
-
-#             # ضغط وتحسين الصورة قبل الحفظ
-#             img = Image.open(new_photo)
-            
-#             # تحويلها لـ RGB إذا كانت بصيغة أخرى (مثل RGBA) لضمان التوافق
-#             if img.mode != 'RGB':
-#                 img = img.convert('RGB')
-
-#             # تغيير الحجم  لجعلها أخف)
-#             img.thumbnail((800, 800)) 
-
-#             output = io.BytesIO()
-#             img.save(output, format='JPEG', quality=70) # تقليل الجودة لـ 70
-#             output.seek(0)
-
-#             # استبدال الصورة الأصلية بالمضغوطة
-#             content_file = ContentFile(output.read(), name=new_photo.name)
-#             validated_data['personal_photo'] = content_file
-
-#         return super().update(instance, validated_data)
 class UserPhotoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['personal_photo']
-
+       
     def validate_personal_photo(self, value):
         # التحقق من الحجم (5 ميغابايت)
         limit = 5 * 1024 * 1024  
         if value.size > limit:
             raise ValidationError("Photo size is too big. It must be under 5MB")
         return value
-
-    # def update(self, instance, validated_data):
-    #     new_photo = validated_data.get('personal_photo')
-        
-    #     if new_photo:
-    #         # Cloudinary يتكفل بحذف الصورة القديمة تلقائياً إذا كانت الإعدادات صحيحة
-    #         # سنقوم فقط بتحديث الحقل وحفظ الـ Instance
-    #         instance.personal_photo = new_photo
-    #         instance.save()
-            
-    #     return instance    
+   
     def update(self, instance, validated_data):
       new_photo = validated_data.get('personal_photo')
       if new_photo:
@@ -692,43 +641,15 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
         # 5) معالجة الصور، ضغطها، وحفظها
         if images:
-            media_objs = [] # القائمة التي طلبتِ إبقاءها
             for img in images:
-                try:
-                    # فتح الصورة ومعالجتها (الضغط والتحسين)
-                    pil_image = Image.open(img)
-                    
-                    # تحويل النمط لـ RGB لضمان التوافق مع JPEG
-                    if pil_image.mode != 'RGB':
-                        pil_image = pil_image.convert('RGB')
-
-                    # تصغير الأبعاد (Resize) لـ 1080 بكسل كحد أقصى
-                    pil_image.thumbnail((1080, 1080))
-
-                    # الحفظ في ذاكرة مؤقتة بضغط 70%
-                    output = io.BytesIO()
-                    pil_image.save(output, format='JPEG', quality=70, optimize=True)
-                    output.seek(0)
-
-                    # إنشاء ملف جديد مضغوط
-                    optimized_image = ContentFile(output.read(), name=img.name)
-                    
-                    # إنشاء كائن الميديا وحفظه
-                    m = Media.objects.create(
-                        post=post, 
-                        uploaded_by=user, 
-                        image=optimized_image
-                    )
-                    media_objs.append(m)
-                
-                except Exception:
-                    # في حال حدوث خطأ في المعالجة، نحفظ الصورة الأصلية كخيار بديل
-                    m = Media.objects.create(post=post, uploaded_by=user, image=img)
-                    media_objs.append(m)
+                # فقط نرسل الملف كما هو لـ Cloudinary
+                Media.objects.create(
+                    post=post, 
+                    uploaded_by=user, 
+                    image=img
+                )
 
         return post
-
-
 
 #عرض البوست كاملاً
 class PostSerializer(serializers.ModelSerializer):

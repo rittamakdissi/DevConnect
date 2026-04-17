@@ -211,7 +211,12 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': config('CLOUDINARY_API_SECRET'),
 }
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # إخبار جانجو باستخدام كلوديناري للملفات المرفوعة (Media)
-
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+    'UPLOAD_PRESET': os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset'),
+}
 
 # هذا السطر بيقرأ المفتاح من ملف .env
 GROQ_API_KEY = config('GROQ_API_KEY')
