@@ -251,16 +251,23 @@ class UserPhotoUpdateSerializer(serializers.ModelSerializer):
             raise ValidationError("Photo size is too big. It must be under 5MB")
         return value
 
-    def update(self, instance, validated_data):
-        new_photo = validated_data.get('personal_photo')
+    # def update(self, instance, validated_data):
+    #     new_photo = validated_data.get('personal_photo')
         
-        if new_photo:
-            # Cloudinary يتكفل بحذف الصورة القديمة تلقائياً إذا كانت الإعدادات صحيحة
-            # سنقوم فقط بتحديث الحقل وحفظ الـ Instance
+    #     if new_photo:
+    #         # Cloudinary يتكفل بحذف الصورة القديمة تلقائياً إذا كانت الإعدادات صحيحة
+    #         # سنقوم فقط بتحديث الحقل وحفظ الـ Instance
+    #         instance.personal_photo = new_photo
+    #         instance.save()
+            
+    #     return instance    
+    def update(self, instance, validated_data):
+      new_photo = validated_data.get('personal_photo')
+      if new_photo:
+         with transaction.atomic():
             instance.personal_photo = new_photo
             instance.save()
-            
-        return instance    
+      return instance
 ####################################################################################################
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:

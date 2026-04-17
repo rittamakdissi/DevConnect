@@ -213,6 +213,9 @@ CLOUDINARY_STORAGE = {
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # إخبار جانجو باستخدام كلوديناري للملفات المرفوعة (Media)
 
 
-
 # هذا السطر بيقرأ المفتاح من ملف .env
 GROQ_API_KEY = config('GROQ_API_KEY')
+
+# إعدادات إضافية لتحسين استقرار الاتصال
+import socket
+socket.setdefaulttimeout(60) # رفع المهلة إلى 60 ثانية
