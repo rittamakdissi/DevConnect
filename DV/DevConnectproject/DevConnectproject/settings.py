@@ -39,6 +39,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
     "https://devconnect-vbiy.onrender.com",
 ]
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -124,7 +125,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=10), # التوكن بضل شغال يوم
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),    # بعد اسبوع لازم يعمل ريفريش
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY, # بيستخدم مفتاح مشروعك السري للتشفير
     'AUTH_HEADER_TYPES': ('Bearer',), # لما رفيقتك تبعت التوكن لازم تكتب قبله كلمة Bearer

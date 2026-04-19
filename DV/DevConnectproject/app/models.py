@@ -62,7 +62,7 @@ class User(AbstractUser):
     @property
     def followers_count(self):
       return self.followers_set.count()
-
+    
     @property
     def following_count(self):
       return self.following_set.count()

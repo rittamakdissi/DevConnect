@@ -30,6 +30,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Post
 from .utils import translate_text
+from rest_framework_simplejwt.tokens import RefreshToken
 #from .ai.improve_post import improve_post_text
 from deep_translator import GoogleTranslator
 from rest_framework.views import APIView
@@ -65,9 +66,28 @@ class RegisterView(APIView):
 
 
 
-
+# زدت هاد
 # Login 
- # خالصة
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    serializer_class = LoginSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # إذا كان الـ Serializer صحيحاً، استخرجي المستخدم
+        user = serializer.validated_data['user']
+        
+        # أنشئي الـ Token يدوياً
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        })
+
 
 
 

@@ -22,10 +22,12 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+# from rest_framework_simplejwt.views import (
+#     TokenObtainPairView,
+#     TokenRefreshView,
+# )
+
+
 # def create_admin(request):
 #     # نستخدم اسم مستخدم جديد أو نتأكد أن القديم غير موجود
 #     username = 'rittamakdissi' 
@@ -49,9 +51,8 @@ urlpatterns = [
    # path('make-me-admin/', create_admin), 
 
     path('',include('app.urls')),
-   # path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    #path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+   # path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
