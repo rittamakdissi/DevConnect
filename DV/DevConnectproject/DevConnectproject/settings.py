@@ -31,8 +31,14 @@ SECRET_KEY = 'django-insecure-is(a*q4nlqru$f_#20(+^8w%o#bxfxl4h=+*)!74fjtbe^ab3c
 DEBUG = False
 
 
-ALLOWED_HOSTS = ['*']
-
+#ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['devconnect-vbiy.onrender.com', 'localhost', '127.0.0.1']
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5174",
+    "http://localhost:5173",
+    "http://127.0.0.1:5174",
+    "https://devconnect-vbiy.onrender.com",
+]
 # Application definition
 
 INSTALLED_APPS = [
@@ -45,10 +51,12 @@ INSTALLED_APPS = [
     'app.apps.AppConfig',
     'rest_framework',
     'rest_framework_simplejwt',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
