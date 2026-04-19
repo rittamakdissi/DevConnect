@@ -1,16 +1,17 @@
 from django.urls import path
 from .views import *
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+# from rest_framework_simplejwt.views import (
+#     TokenObtainPairView,
+#     TokenRefreshView,
+# )
 
 urlpatterns = [
 
-    path('login/', LoginView.as_view(), name='login'),
+    # هدول ضفتن جداد هون
+    # path('login/', LoginView.as_view(), name='login'),
+    # path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
 
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # Register
     path("register/", RegisterView.as_view(), name="register"),
 

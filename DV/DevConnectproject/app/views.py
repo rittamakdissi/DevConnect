@@ -68,25 +68,25 @@ class RegisterView(APIView):
 
 # زدت هاد
 # Login 
-class LoginView(APIView):
-    permission_classes = [AllowAny]
+# class LoginView(APIView):
+#     permission_classes = [AllowAny]
 
-    serializer_class = LoginSerializer
+#     serializer_class = LoginSerializer
 
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+#     def post(self, request):
+#         serializer = self.serializer_class(data=request.data)
+#         serializer.is_valid(raise_exception=True)
         
-        # إذا كان الـ Serializer صحيحاً، استخرجي المستخدم
-        user = serializer.validated_data['user']
+#         # إذا كان الـ Serializer صحيحاً، استخرجي المستخدم
+#         user = serializer.validated_data['user']
         
-        # أنشئي الـ Token يدوياً
-        refresh = RefreshToken.for_user(user)
+#         # أنشئي الـ Token يدوياً
+#         refresh = RefreshToken.for_user(user)
         
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        })
+#         return Response({
+#             'refresh': str(refresh),
+#             'access': str(refresh.access_token),
+#         })
 
 
 
