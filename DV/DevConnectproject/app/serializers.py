@@ -59,13 +59,13 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     #  VALIDATION
     def validate(self, data):
-
+               
         #  تطابق الباسوردين
         if data["password"] != data["confirm_password"]:
             raise serializers.ValidationError(
                 {"password": "Password and Confirm Password do not match."}
             )
-
+            
           #  التحقق من طول كلمة السر (على الأقل 8 محارف)
         if len(data["password"]) < 8:
              raise serializers.ValidationError(

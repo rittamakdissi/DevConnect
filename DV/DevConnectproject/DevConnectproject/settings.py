@@ -214,20 +214,34 @@ DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
 
 
 # إعدادات تخزين الصور (Cloudinary)
+# CLOUDINARY_STORAGE = {
+#     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
+#     'API_KEY': config('CLOUDINARY_API_KEY'),
+#     'API_SECRET': config('CLOUDINARY_API_SECRET'),
+# }
+# DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # إخبار جانجو باستخدام كلوديناري للملفات المرفوعة (Media)
+# CLOUDINARY_STORAGE = {
+#     'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+#     'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+#     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+#     'UPLOAD_PRESET': os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset'),
+# }
+# استخدمي config أو os.environ، ولكن لا تدمجي الطريقتين في تعريفين منفصلين
+# settings.py
+
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': config('CLOUDINARY_API_KEY'),
-    'API_SECRET': config('CLOUDINARY_API_SECRET'),
-}
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage' # إخبار جانجو باستخدام كلوديناري للملفات المرفوعة (Media)
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
-    'UPLOAD_PRESET': os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset'),
+    'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME', default=os.environ.get('CLOUDINARY_CLOUD_NAME')),
+    'API_KEY': config('CLOUDINARY_API_KEY', default=os.environ.get('CLOUDINARY_API_KEY')),
+    'API_SECRET': config('CLOUDINARY_API_SECRET', default=os.environ.get('CLOUDINARY_API_SECRET')),
+    'UPLOAD_PRESET': config('CLOUDINARY_UPLOAD_PRESET', default=os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset')),
 }
 
-# هذا السطر بيقرأ المفتاح من ملف .env
+# هذا السطر يخبر جانجو أن يستخدم كلوديناري لكل الصور
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+
+
+
 GROQ_API_KEY = config('GROQ_API_KEY')
 
 # إعدادات إضافية لتحسين استقرار الاتصال
