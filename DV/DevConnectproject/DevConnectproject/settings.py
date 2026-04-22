@@ -245,10 +245,15 @@ CLOUDINARY_STORAGE = {
     'UPLOAD_PRESET': config('CLOUDINARY_UPLOAD_PRESET', default=os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset')),
 }
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-# للنسخ الأقدم من جانغو (لضمان عمل كل شيء)
-#DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# بدلاً من DEFAULT_FILE_STORAGE القديم، استخدمي هذا:
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 
 
