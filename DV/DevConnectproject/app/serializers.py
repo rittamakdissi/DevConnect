@@ -119,22 +119,9 @@ class CurrentUserSerializer(serializers.ModelSerializer):
         ]
 
     def get_personal_photo_url(self, obj):
-        # التأكد من وجود الصورة وأنها تمتلك رابطاً
-        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            url = obj.personal_photo.url
-            
-            # إذا كان الرابط يبدأ بـ http (مثل روابط كلوديناري)، أرجعيه كما هو
-            if url.startswith("http"):
-                return url
-            
-            # إذا كان رابط محلي (يبدأ بـ /)، ابنِ الرابط الكامل باستخدام الـ request
-            request = self.context.get("request")
-            if request:
-                return request.build_absolute_uri(url)
-            
-            return url
-            
-        return None   
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
 ##########################################################
 class MyProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
@@ -158,10 +145,9 @@ class MyProfileSerializer(serializers.ModelSerializer):
 
         """إرجاع رابط الصورة الكامل"""
     def get_personal_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            return request.build_absolute_uri(obj.personal_photo.url)
-        return None
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
 
     def get_posts(self, obj):
        # جلب كل منشورات المستخدم
@@ -192,10 +178,9 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
 
         """إرجاع رابط الصورة الكامل"""
     def get_personal_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            return request.build_absolute_uri(obj.personal_photo.url)
-        return None
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
 
     def get_is_following(self, obj):
         request = self.context.get("request")
@@ -345,22 +330,9 @@ class UserMiniSerializer(serializers.ModelSerializer):
         ]
 
     def get_personal_photo_url(self, obj):
-        # التأكد من وجود الصورة وأنها تمتلك رابطاً
-        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            url = obj.personal_photo.url
-            
-            # إذا كان الرابط يبدأ بـ http (مثل روابط كلوديناري)، أرجعيه كما هو
-            if url.startswith("http"):
-                return url
-            
-            # إذا كان رابط محلي (يبدأ بـ /)، ابنِ الرابط الكامل باستخدام الـ request
-            request = self.context.get("request")
-            if request:
-                return request.build_absolute_uri(url)
-            
-            return url
-            
-        return None 
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
 #####################################################################################################
 class FollowersListSerializer(serializers.ModelSerializer):
     user = UserMiniSerializer(source="follower", read_only=True)
@@ -466,12 +438,10 @@ class CommentSerializer(serializers.ModelSerializer):
     def get_is_reply(self, obj):
      return obj.parent is not None
 
-    def get_user_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.user.personal_photo:
-            return request.build_absolute_uri(obj.user.personal_photo.url)
-        return None
-
+    def get_personal_photo_url(self, obj):
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
 
 # لانشاء تعليق او رد
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -550,10 +520,9 @@ class MediaSerializer(serializers.ModelSerializer):
         fields = ["id", "image_url"]
 
     def get_image_url(self, obj):
-        request = self.context.get("request")
-        if obj.image and hasattr(obj.image, "url"):
-            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
-        return None
+       if obj.image and hasattr(obj.image, "url"):
+            return obj.image.url
+       return None
 
 
 # class PostCreateSerializer(serializers.ModelSerializer):
@@ -907,10 +876,9 @@ class SearchUserSerializer(serializers.ModelSerializer):
         ]
 
     def get_personal_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.personal_photo:
-            return request.build_absolute_uri(obj.personal_photo.url)
-        return None
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None
     
     def get_is_following(self, obj):
         request = self.context.get("request")
@@ -976,10 +944,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             # بما أن images هي مجموعة (RelatedManager)، نأخذ أول صورة منها
             first_image = target_post.images.all().first()
             
-            if first_image and hasattr(first_image, 'image') and first_image.image:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(first_image.image.url)
+            if first_image and first_image.image:
                 return first_image.image.url
         return None
 
