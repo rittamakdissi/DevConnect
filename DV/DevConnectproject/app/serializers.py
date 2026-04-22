@@ -106,8 +106,36 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-#######################################################################################################33
+#######################################################################################################
+class CurrentUserSerializer(serializers.ModelSerializer):
+    personal_photo_url = serializers.SerializerMethodField()
 
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "personal_photo_url",
+            # أضيفي أي حقول أخرى تحتاجينها هنا
+        ]
+
+    def get_personal_photo_url(self, obj):
+        # التأكد من وجود الصورة وأنها تمتلك رابطاً
+        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+            url = obj.personal_photo.url
+            
+            # إذا كان الرابط يبدأ بـ http (مثل روابط كلوديناري)، أرجعيه كما هو
+            if url.startswith("http"):
+                return url
+            
+            # إذا كان رابط محلي (يبدأ بـ /)، ابنِ الرابط الكامل باستخدام الـ request
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(url)
+            
+            return url
+            
+        return None   
+##########################################################
 class MyProfileSerializer(serializers.ModelSerializer):
     personal_photo_url = serializers.SerializerMethodField()
     followers_count = serializers.IntegerField(read_only=True)
@@ -317,11 +345,22 @@ class UserMiniSerializer(serializers.ModelSerializer):
         ]
 
     def get_personal_photo_url(self, obj):
-        request = self.context.get("request")
+        # التأكد من وجود الصورة وأنها تمتلك رابطاً
         if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            return request.build_absolute_uri(obj.personal_photo.url)
-        return None
-
+            url = obj.personal_photo.url
+            
+            # إذا كان الرابط يبدأ بـ http (مثل روابط كلوديناري)، أرجعيه كما هو
+            if url.startswith("http"):
+                return url
+            
+            # إذا كان رابط محلي (يبدأ بـ /)، ابنِ الرابط الكامل باستخدام الـ request
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(url)
+            
+            return url
+            
+        return None 
 #####################################################################################################
 class FollowersListSerializer(serializers.ModelSerializer):
     user = UserMiniSerializer(source="follower", read_only=True)
@@ -650,7 +689,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
                 )
 
         return post
-
+    
 #عرض البوست كاملاً
 class PostSerializer(serializers.ModelSerializer):
     

@@ -102,6 +102,13 @@ class MyProfileView(APIView):
 
 
 
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = CurrentUserSerializer(request.user, context={'request': request})
+        return Response(serializer.data)
+
 
 # OtherUserProfile
 class OtherUserProfileView(APIView):

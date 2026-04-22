@@ -53,6 +53,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'cloudinary_storage',
+    'cloudinary',
 ]
 
 MIDDLEWARE = [
@@ -213,6 +215,13 @@ DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
 # DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
 
 
+
+
+
+
+
+
+
 # إعدادات تخزين الصور (Cloudinary)
 # CLOUDINARY_STORAGE = {
 #     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
@@ -236,9 +245,10 @@ CLOUDINARY_STORAGE = {
     'UPLOAD_PRESET': config('CLOUDINARY_UPLOAD_PRESET', default=os.environ.get('CLOUDINARY_UPLOAD_PRESET', 'devconnect_preset')),
 }
 
-# هذا السطر يخبر جانجو أن يستخدم كلوديناري لكل الصور
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
+# للنسخ الأقدم من جانغو (لضمان عمل كل شيء)
+#DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 

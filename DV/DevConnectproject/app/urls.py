@@ -12,8 +12,12 @@ urlpatterns = [
     # path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
 
+
     # Register
     path("register/", RegisterView.as_view(), name="register"),
+    
+    #for id and photo
+    path('me/', CurrentUserView.as_view(), name='current-user'),
 
     # My Profile
     path("profile/me/", MyProfileView.as_view(), name="my-profile"),
