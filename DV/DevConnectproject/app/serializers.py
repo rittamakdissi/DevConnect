@@ -415,10 +415,13 @@ class ReactionSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source="user.username", read_only=True)
     user_photo_url = serializers.SerializerMethodField()
-    useful_count = serializers.IntegerField(read_only=True)
-    not_useful_count = serializers.IntegerField(read_only=True)
-    replies_count = serializers.IntegerField(read_only=True)
+   # useful_count = serializers.IntegerField(read_only=True)
+    #not_useful_count = serializers.IntegerField(read_only=True)
+   # replies_count = serializers.IntegerField(read_only=True)
     is_reply = serializers.SerializerMethodField()
+    useful_count = serializers.IntegerField(source="computed_useful", read_only=True)
+    not_useful_count = serializers.IntegerField(source="computed_not_useful", read_only=True)
+    replies_count = serializers.IntegerField(source="computed_replies", read_only=True)
 
     class Meta:
         model = Comment
@@ -482,7 +485,9 @@ class CommentReactionSerializer(serializers.ModelSerializer):
         new_type = self.validated_data["reaction_type"]
 
         # التفاعل السابق (إن وجد)
-        existing = CommentReaction.objects.filter(user=user, comment=comment).first()
+       # existing = CommentReaction.objects.filter(user=user, comment=comment).first()
+        with transaction.atomic():
+            existing = CommentReaction.objects.filter(user=user, comment=comment).first()
 
         # 1) إذا كان موجود ونفس النوع → احذف التفاعل
         if existing and existing.reaction_type == new_type:

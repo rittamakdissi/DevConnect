@@ -154,6 +154,10 @@ urlpatterns = [
     path('classify-post/', ClassifyPostAPIView.as_view(), name='classify-api'),
 
 
+    path('ask-ai/', AskAIView.as_view(), name='ask-ai'),
+
+    
+    path('suggest-reply/', SuggestReplyView.as_view(), name='suggest-reply'),
 
 ]
 

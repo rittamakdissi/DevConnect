@@ -444,8 +444,11 @@ class PostCommentsView(APIView):
         post = get_object_or_404(Post, id=post_id)
 
         # نجلب فقط التعليقات الرئيسية
-        comments = post.comments.filter(parent=None)
-
+        comments = post.comments.filter(parent=None).select_related('user').annotate(
+            computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+            computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
+            computed_replies=Count('replies')
+            )
         if ordering == "desc":
             comments = comments.order_by("-created_at")
         else:
@@ -456,14 +459,39 @@ class PostCommentsView(APIView):
 
 
 #لجلب ردود تعليق معيّن
+# class CommentRepliesView(APIView):
+#     """شغالة"""
+#     permission_classes = [IsAuthenticated]
+
+#     # def get(self, request, comment_id):
+#     #     comment = get_object_or_404(Comment, id=comment_id)
+
+#     #     replies = comment.replies.all().order_by("-created_at")
+
+#     #     serializer = CommentSerializer(replies, many=True, context={"request": request})
+#     #     return Response(serializer.data, status=200)
+#     def get(self, request, comment_id):
+#        post = get_object_or_404(Comment, id=comment_id)
+#        comments = post.comments.filter(parent=None).select_related('user').annotate(
+#            computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+#            computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
+#            computed_replies=Count('replies')
+#     )
+#        serializer = CommentSerializer(comments, many=True, context={"request": request})
+#        return Response(serializer.data, status=200)
 class CommentRepliesView(APIView):
-    """شغالة"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, comment_id):
+        # يجب جلب التعليق الأساسي (parent) أولاً
         comment = get_object_or_404(Comment, id=comment_id)
-
-        replies = comment.replies.all().order_by("-created_at")
+        
+        # جلب الردود التابعة لهذا التعليق فقط
+        replies = comment.replies.all().select_related('user').annotate(
+            computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+            computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
+            computed_replies=Count('replies')
+        ).order_by("created_at") # الردود عادة تُعرض بالتسلسل الزمني
 
         serializer = CommentSerializer(replies, many=True, context={"request": request})
         return Response(serializer.data, status=200)
@@ -2255,13 +2283,13 @@ class ClassifyPostAPIView(APIView):
             result = response.json()
             
             if 'choices' in result:
-                category = result['choices'][0]['message']['content'].strip().lower()
+                post_type = result['choices'][0]['message']['content'].strip().lower()
                 
                 # تنظيف النتيجة من أي نقطة أو فراغ إضافي
-                category = "".join(filter(str.isalpha, category))
+                post_type = "".join(filter(str.isalpha, post_type))
                 
                 return Response({
-                    "category": category,
+                    "post_type": post_type,
                 }, status=status.HTTP_200_OK)
             else:
                 return Response({"error": "Classification failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
@@ -2270,3 +2298,121 @@ class ClassifyPostAPIView(APIView):
             return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             
+
+class AskAIView(APIView):
+    def post(self, request):
+        post_id = request.data.get('post_id')
+        action = request.data.get('action')  # (summarize, explain_code, analyze_comments)
+        user_lang = request.data.get('lang', 'ar')
+        
+        post = get_object_or_404(Post, id=post_id)
+        comments = Comment.objects.filter(post=post).values_list('content', flat=True)
+        comments_text = "\n".join(comments)
+
+        # قواميس البرومبتات (عشان الكود يضل مرتب)
+            # التعديل هون في الـ f-string
+        prompts = {
+    'summarize': (
+        f"Provide a summary of the content. "
+        f"Text to summarize: {post.content}"
+        f"Structure your response exactly like this: "
+        f"1. Start with a one-sentence General Overview of the topic. "
+        f"2. Follow with exactly 3 numbered key technical takeaways. "
+        f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases."
+    ),
+    
+    'explain_code': (
+    f"Analyze the following code strictly. "
+    f"Rules: "
+    f"1. State the core idea of the code in exactly one sentence. "
+    f"2. Explain what the code does clearly and concisely. "
+    f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
+    f"Respond in {user_lang}. "
+    f"Code: {post.code}"
+
+    ),
+
+    'analyze_comments': (
+    f"Analyze these comments and provide a high-level summary. "
+    f"Use exactly this format, no other text:\n"
+    f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
+    #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
+    f"2. most important points: [List of specific topics or questions mentioned]\n"
+    f"3. Sentiment: [One word]\n\n"
+    f"Respond in {user_lang}. "
+    f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
+    f"Comments: {comments_text}"
+)
+    
+}                                                                                                                                                                                             #({user_lang})                       
+        
+
+        system_instruction = (
+    "أنت مساعد تقني ذكي. "
+    "رد بأسلوب مباشر ومهني. "
+    "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
+    "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
+)        
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompts.get(action, "Explain this")}
+            ],
+            "temperature": 0.3
+        }
+        
+        headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+        
+        # نداء الـ Groq API
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        
+        return Response(response.json()['choices'][0]['message']['content'])            
+
+
+
+
+
+class SuggestReplyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        post_id = request.data.get("post_id")
+        comment_id = request.data.get("comment_id")
+        
+        post = get_object_or_404(Post, id=post_id)
+        comment = get_object_or_404(Comment, id=comment_id)
+
+        prompt = f"""
+        You are a helpful assistant for a developer forum.
+        Context:
+        Post Title/Content: {post.content[:1000]}
+        Comment to reply to: {comment.content[:500]}
+        but keep technical terms in english even if the comment is in Arabic.
+        Write a concise, helpful, and professional reply. 
+        Keep it under 50 words. Do not use hashtags.
+        """
+        
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [{"role": "user", "content": prompt}]
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            response.raise_for_status() # التأكد أن الطلب نجح
+            
+            data = response.json()
+            suggestion = data['choices'][0]['message']['content']
+            
+            return Response({"suggestion": suggestion}, status=200)
+
+        except requests.exceptions.ConnectionError:
+            return Response({"error": "Connection to AI server failed."}, status=503)
+        except Exception as e:
+            return Response({"error": f"AI suggestion failed: {str(e)}"}, status=500)

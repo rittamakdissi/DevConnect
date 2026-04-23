@@ -294,6 +294,12 @@ class Comment(models.Model):
     def replies_count(self):
         return self.replies.count()
     
+    class Meta:
+        indexes = [
+            # هذا الفهرس يغطي الاستعلام: تصفية حسب البوست + تصفية الردود الرئيسية + ترتيب بالتاريخ
+            models.Index(fields=['post', 'parent', '-created_at'], name='post_parent_created_idx'),
+        ]
+    
     def __str__(self):
         return f"Comment {self.id} by {self.user.username}"
 
@@ -320,8 +326,20 @@ class CommentReaction(models.Model):
     reaction_type = models.CharField(max_length=20, choices=REACTION_TYPES)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # class Meta:
+    #     unique_together = ("user", "comment")
+    
     class Meta:
-        unique_together = ("user", "comment")
+        # 1. القيد الفريد (Unique Constraint)
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'comment'], name='unique_user_comment_reaction')
+        ]
+        
+        # 2. الفهرس المركب (Composite Index)
+        # هذا هو "سر السرعة" في استعلام الـ Annotate الذي كتبناه سابقاً
+        indexes = [
+            models.Index(fields=['comment', 'reaction_type'], name='comment_reaction_idx'),
+        ]    
 
     def __str__(self):
         return f"{self.user.username} reacted ({self.reaction_type}) on {self.comment}"
