@@ -436,11 +436,11 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
     def get_is_reply(self, obj):
-     return obj.parent is not None
+      return obj.parent is not None
 
-    def get_personal_photo_url(self, obj):
-      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-         return obj.personal_photo.url
+    def get_user_photo_url(self, obj):
+      if obj.user.personal_photo and hasattr(obj.user.personal_photo, "url"):
+          return obj.user.personal_photo.url
       return None
 
 # لانشاء تعليق او رد
