@@ -94,11 +94,19 @@ class RegisterView(APIView):
 # MyProfile
 class MyProfileView(APIView):
     """شغالة"""
-    def get(self, request):
-        user=request.user
-        serializer = MyProfileSerializer(user, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
     permission_classes = [IsAuthenticated]
+    # def get(self, request):
+    #     user=request.user
+    #     serializer = MyProfileSerializer(user, context={"request": request})
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
+    # permission_classes = [IsAuthenticated]
+    def get(self, request):
+        user = User.objects.filter(id=request.user.id).annotate(
+        followers_count=Count('followers_set'),
+        following_count=Count('following_set')
+    ).first()
+        serializer = MyProfileSerializer(user, context={"request": request})
+        return Response(serializer.data, status=200)
 
 
 
@@ -113,21 +121,29 @@ class CurrentUserView(APIView):
 # OtherUserProfile
 class OtherUserProfileView(APIView):
     """شغالة"""
-    def get(self, request, user_id):
-        try:
-            user = User.objects.get(pk=user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"message": "User not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+    # def get(self, request, user_id):
+    #     try:
+    #         user = User.objects.get(pk=user_id)
+    #     except User.DoesNotExist:
+    #         return Response(
+    #             {"message": "User not found."},
+    #             status=status.HTTP_404_NOT_FOUND
+    #         )
 
-        serializer = OtherUserProfileSerializer(
-            user,
-            context={"request": request}
-        )
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    #     serializer = OtherUserProfileSerializer(
+    #         user,
+    #         context={"request": request}
+    #     )
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
     permission_classes = [IsAuthenticated]
+    def get(self, request, user_id):
+        user = User.objects.filter(pk=user_id).annotate(
+        followers_count=Count('followers_set')
+    ).first()
+        if not user:
+           return Response({"message": "User not found."}, status=404)
+        serializer = OtherUserProfileSerializer(user, context={"request": request})
+        return Response(serializer.data, status=200)
 
 
 
@@ -361,6 +377,7 @@ class ReactToPostView(APIView):
             }, status=200)
 
         return Response(serializer.errors, status=400)
+    
 # class ReactToPostView(APIView):
 #     """ هاد الصح ومنحطو بعد ما نعمل البوست"""
 #     permission_classes = [IsAuthenticated]
@@ -416,12 +433,16 @@ class ReactionUsersListView(APIView):
             return Response({"message": "Invalid reaction type"}, status=400)
 
         # جلب المستخدمين الذين عملوا هذا التفاعل
-        reactions = Reaction.objects.filter(
-            post=post,
-            reaction_type=reaction_type
-        )
+        # reactions = Reaction.objects.filter(
+        #     post=post,
+        #     reaction_type=reaction_type
+        # )
 
-        users = [reaction.user for reaction in reactions]
+        # users = [reaction.user for reaction in reactions]
+        users = User.objects.filter(
+           reactions__post=post,
+           reactions__reaction_type=reaction_type
+        )
 
         serializer = UserMiniSerializer(
             users,
@@ -512,10 +533,17 @@ class CommentCreateView(APIView):
         )
 
         if serializer.is_valid():
-            comment = serializer.save()
-            return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
+           comment = serializer.save()
+           comment = Comment.objects.filter(id=comment.id).select_related('user').annotate(
+               computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+               computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
+               computed_replies=Count('replies')
+           ).first()
 
+           return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
         return Response(serializer.errors, status=400)
+    
+
   #Create comment OR reply
 # class CommentCreateView(APIView):
 """ هاد الصح ومنحطو بعد ما نعمل البوست"""
@@ -628,11 +656,15 @@ class CommentDetailView(APIView):
         serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            comment = Comment.objects.filter(id=comment_id).select_related('user').annotate(
+                   computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+                   computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
+                   computed_replies=Count('replies')
+              ).first()
             return Response({
-                "message": "Comment updated successfully",
-                "data": CommentSerializer(comment, context={"request": request}).data
-            }, status=200)
-
+    "message": "Comment updated successfully",
+    "data": CommentSerializer(comment, context={"request": request}).data
+         }, status=200)
         return Response(serializer.errors, status=400)
 
     def delete(self, request, comment_id):
@@ -716,7 +748,12 @@ class PostDetailView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request, post_id):
-        post = get_object_or_404(Post, id=post_id)
+       # post = get_object_or_404(Post, id=post_id)
+        post = Post.objects.filter(id=post_id).annotate(
+           total_comments=Count('comments')
+            ).first()
+        if not post:
+            return Response({"message": "Post not found."}, status=404)
         serializer = PostSerializer(post, context={"request": request})
         return Response(serializer.data, status=200)
     
@@ -745,6 +782,9 @@ class PostUpdateDeleteView(APIView):
 
         if serializer.is_valid():
             post = serializer.save()
+            post = Post.objects.filter(id=post.id).annotate(
+               total_comments=Count('comments')
+               ).first()
             return Response({
                 "message": "Post updated successfully",
                 "post": PostSerializer(post, context={"request": request}).data
@@ -805,7 +845,8 @@ class FeedView(APIView):
         user = request.user
         
         # 1. جلب IDs الأشخاص المتابَعين
-        following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        #following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+        following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
 
         # 2. استخراج التاغات المهتمة فيها بناءً على آخر 10 تفاعلات
         # مع استثناء البوستات يلي بتفاعل فيها ب غير مفيد
@@ -896,9 +937,21 @@ class FeedView(APIView):
         # 5. حقن سبب الظهور في الكائنات المقطعة فقط (لتحسين الأداء)
         for post in result_page:
             post.suggestion_reason = reasons_map.get(post.id, "")
-
+        # following_ids_set = set(
+        #     Follow.objects.filter(follower=request.user)
+        #     .values_list('following_id', flat=True)
+        #       )
+        user_reactions_map = dict(
+             Reaction.objects.filter(user=request.user, post__in=result_page)
+            .values_list('post_id', 'reaction_type')
+             )
         # 6. السيريالايزر والرد باستخدام paginator.get_paginated_response
-        serializer = PostSerializer(result_page, many=True, context={'request': request})
+        #serializer = PostSerializer(result_page, many=True, context={'request': request})
+        serializer = PostSerializer(result_page, many=True, context={
+         'request': request,
+         'following_ids': following_ids,
+         'user_reactions': user_reactions_map,
+})
         return paginator.get_paginated_response(serializer.data)
 
 #هاد بدون الpagination
@@ -1019,7 +1072,8 @@ class SuggestedUsersView(APIView):
         candidates = User.objects.exclude(id=current_user.id)\
         .exclude(id__in=following_ids)\
         .exclude(specialization__isnull=True)\
-        .exclude(specialization="") # استبعاد النصوص الفارغة أيضاً
+        .exclude(specialization="")\
+        .annotate(followers_count=Count('followers_set')) 
         scored_users = []      # أصحاب التخصص (Strong/Medium)
         zero_score_users = []  # البعيدين عن التخصص (Fallback)
 
@@ -1052,9 +1106,20 @@ class SuggestedUsersView(APIView):
             
             needed = 8 - len(final_users)
             final_users.extend(fallback_pool[:needed])
-
+        following_ids_set = set(
+            Follow.objects.filter(follower=request.user)
+           .values_list('following_id', flat=True)
+)
         # د. إرسال النتائج النهائية
-        serializer = UserSuggestionSerializer(final_users, many=True, context={"request": request})
+        #serializer = UserSuggestionSerializer(final_users, many=True, context={"request": request})
+        serializer = UserSuggestionSerializer(
+           final_users,
+           many=True,
+           context={
+        "request": request,
+        "following_ids": following_ids_set,
+    }
+)
         return Response(serializer.data, status=200)
 
 

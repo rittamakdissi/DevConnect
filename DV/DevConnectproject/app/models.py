@@ -59,13 +59,13 @@ class User(AbstractUser):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name", "age", "phone_number"]
 
-    @property
-    def followers_count(self):
-      return self.followers_set.count()
+    # @property
+    # def followers_count(self):
+    #   return self.followers_set.count()
     
-    @property
-    def following_count(self):
-      return self.following_set.count()
+    # @property
+    # def following_count(self):
+    #   return self.following_set.count()
     # لتسريع البحث
     class Meta:
         indexes = [
@@ -148,9 +148,9 @@ class Post(models.Model):
         return result
     
  # 🔥 عدد جميع التعليقات (الرئيسية + الردود)
-    @property
-    def total_comments(self):
-        return self.comments.count()
+    # @property
+    # def total_comments(self):
+    #     return self.comments.count()
     
     # 🔥 دالة لإرجاع جميع المنشورات التي تحتوي على تاغ محدد
     @classmethod

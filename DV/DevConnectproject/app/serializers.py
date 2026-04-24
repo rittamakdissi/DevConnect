@@ -427,6 +427,7 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = [
             "id",
+            "user_id", 
             "user_photo_url",
             "user_username",
             "content",
@@ -490,21 +491,21 @@ class CommentReactionSerializer(serializers.ModelSerializer):
             existing = CommentReaction.objects.filter(user=user, comment=comment).first()
 
         # 1) إذا كان موجود ونفس النوع → احذف التفاعل
-        if existing and existing.reaction_type == new_type:
-            existing.delete()
-            return None   # مهم جداً
+            if existing and existing.reaction_type == new_type:
+                 existing.delete()
+                 return None   # مهم جداً
 
         # 2) إذا كان موجود ونوع مختلف → عدّل التفاعل
-        if existing:
-            existing.reaction_type = new_type
-            existing.save()
-            return existing
+            if existing:
+                existing.reaction_type = new_type
+                existing.save()
+                return existing
 
         # 3) لا يوجد تفاعل مسبق → أنشئ واحد جديد
-        return CommentReaction.objects.create(
-            user=user,
-            comment=comment,
-            reaction_type=new_type
+            return CommentReaction.objects.create(
+                user=user,
+                comment=comment,
+                reaction_type=new_type
         )
 
 
@@ -700,37 +701,47 @@ class PostSerializer(serializers.ModelSerializer):
     
     def get_is_following(self, obj):
         #هل المستخدم الحالي يتابع صاحب هذا المنشور؟"
-        request = self.context.get("request")
-        
-        # 1. إذا لم يكن هناك طلب أو المستخدم غير مسجل دخول
-        if not request or not request.user.is_authenticated:
-            return False
-
-        # 2. إذا كان المنشور لي شخصياً (اختياري: ممكن ترجعي False أو None)
-        if request.user == obj.user:
-            return False
-
-        # 3. التحقق من جدول الـ Follow
-        # انتبهي: follower هو (أنا)، following هو (صاحب البوست)
-        return Follow.objects.filter(
-            follower=request.user,
-            following=obj.user  # لاحظي هنا استخدمنا obj.user وليس obj
-        ).exists()
+        # request = self.context.get("request")
+        # if not request or not request.user.is_authenticated:
+        #     return False
+        # if request.user == obj.user:
+        #     return False
+        # return Follow.objects.filter(
+        #     follower=request.user,
+        #     following=obj.user  
+        # ).exists()
+            following_ids = self.context.get("following_ids")
+            if following_ids is not None:
+                return obj.user.id in following_ids
+            request = self.context.get("request")
+            if not request or not request.user.is_authenticated:
+                  return False
+            return Follow.objects.filter(
+                follower=request.user, following=obj.user
+            ).exists()
 
     def get_reaction_counts(self, obj):
         """إرجاع عدد كل نوع تفاعل"""
         return obj.get_reaction_counts()
 
     def get_user_reaction(self, obj):
-        """ما هو التفاعل الذي قام به المستخدم الحالي؟"""
-        request = self.context.get("request")
-        if not request or not request.user.is_authenticated:
-            return None
+         """ما هو التفاعل الذي قام به المستخدم الحالي؟"""
+        # request = self.context.get("request")
+        # if not request or not request.user.is_authenticated:
+        #     return None
 
-        reaction = Reaction.objects.filter(user=request.user, post=obj).first()
-        if reaction:
-            return reaction.reaction_type
-        return None
+        # reaction = Reaction.objects.filter(user=request.user, post=obj).first()
+        # if reaction:
+        #     return reaction.reaction_type
+        # return None
+         user_reactions = self.context.get("user_reactions")
+         if user_reactions is not None:
+            return user_reactions.get(obj.id)
+         request = self.context.get("request")
+         if not request or not request.user.is_authenticated:
+             return None
+         reaction = Reaction.objects.filter(user=request.user, post=obj).first()
+         return reaction.reaction_type if reaction else None
 
 
 
@@ -784,18 +795,30 @@ class UserSuggestionSerializer(serializers.ModelSerializer):
             "followers_count",
             "is_following",
         ]
+    # def get_is_following(self, obj):
+    #     request = self.context.get("request")
+    #     # إذا كان المستخدم ضيف (غير مسجل دخول) نرجع False
+    #     if not request or not request.user.is_authenticated:
+    #         return False
+    #     return Follow.objects.filter(follower=request.user, following=obj).exists()
     def get_is_following(self, obj):
+        following_ids = self.context.get("following_ids")
+        if following_ids is not None:
+              return obj.id in following_ids
         request = self.context.get("request")
-        # إذا كان المستخدم ضيف (غير مسجل دخول) نرجع False
         if not request or not request.user.is_authenticated:
             return False
         return Follow.objects.filter(follower=request.user, following=obj).exists()
 
+    # def get_personal_photo_url(self, obj):
+    #     request = self.context.get("request")
+    #     if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+    #         return request.build_absolute_uri(obj.personal_photo.url)
+    #     return None   
     def get_personal_photo_url(self, obj):
-        request = self.context.get("request")
-        if obj.personal_photo and hasattr(obj.personal_photo, "url"):
-            return request.build_absolute_uri(obj.personal_photo.url)
-        return None    
+      if obj.personal_photo and hasattr(obj.personal_photo, "url"):
+         return obj.personal_photo.url
+      return None 
     
 ####################################################################
 """مانون مجربين ابدا بس عطاني ياهن الشات هيك وبعدين بس نعمل الذكاء منرجعلن"""
