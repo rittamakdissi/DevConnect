@@ -540,7 +540,12 @@ class CommentCreateView(APIView):
                computed_replies=Count('replies')
            ).first()
 
-           return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
+           total_comments = Comment.objects.filter(post=post).count()
+           return Response({
+             "comment": CommentSerializer(comment, context={"request": request}).data,
+              "total_comments": total_comments
+              }, status=201)
+           #return Response(CommentSerializer(comment, context={"request": request}).data, status=201)
         return Response(serializer.errors, status=400)
     
 
