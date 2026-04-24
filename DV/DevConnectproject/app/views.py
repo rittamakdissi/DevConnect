@@ -911,6 +911,7 @@ class FeedView(APIView):
         final_posts = Post.objects.filter(id__in=all_ids)\
             .select_related('user')\
             .prefetch_related('images')\
+            .annotate(total_comments=Count('comments'))\
             .distinct()\
             .order_by('-created_at')
         # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
@@ -1224,10 +1225,14 @@ class SearchView(APIView):
                 "message": "no matching results found",
                 "results": []
             })
+          following_ids_set = set(
+            Follow.objects.filter(follower=request.user)
+            .values_list('following_id', flat=True)
+)
           serializer = SearchUserSerializer(
           page,
           many=True,
-          context={"request": request}
+          context={"request": request, "following_ids": following_ids_set}
           )
           
           return Response({
@@ -1423,11 +1428,14 @@ class SearchHistoryView(APIView):
             #     .filter(username__in=usernames)
             #     .exclude(id=request.user.id)
             # )
-
+            following_ids_set = set(
+               Follow.objects.filter(follower=request.user)
+               .values_list('following_id', flat=True)
+)
             serializer = SearchUserSerializer(
                 sorted_users,
                 many=True,
-                context={"request": request}
+                context={"request": request, "following_ids": following_ids_set}
             )
 
             return Response({
@@ -1674,6 +1682,8 @@ class TranslatePostView(APIView):
     def post(self, request):
 
         post_id = request.data.get("post_id")
+        if not post_id:
+            return Response({"error": "post_id required"}, status=400)
 
         try:
             post = Post.objects.get(id=post_id)
@@ -1794,7 +1804,11 @@ class NotificationListView(APIView):
 
     def get(self, request):
         # جلب إشعارات المستخدم مرتبة من الأحدث
-        notifications = request.user.notifications.all().order_by('-created_at')
+        #notifications = request.user.notifications.all().order_by('-created_at')
+        notifications = request.user.notifications\
+          .select_related('from_user', 'post', 'comment')\
+          .prefetch_related('post__images', 'comment__post__images')\
+          .order_by('-created_at')[:25]
         serializer = NotificationSerializer(notifications, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -2387,37 +2401,46 @@ class AskAIView(APIView):
     ),
     
     'explain_code': (
-    f"Analyze the following code strictly. "
-    f"Rules: "
-    f"1. State the core idea of the code in exactly one sentence. "
-    f"2. Explain what the code does clearly and concisely. "
-    f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
-    f"Respond in {user_lang}. "
-    f"Code: {post.code}"
+            f"Analyze the following code strictly. "
+            f"Rules: "
+            f"1. State the core idea of the code in exactly one sentence. "
+            f"2. Explain what the code does clearly and concisely. "
+            f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
+            f"Respond in {user_lang}. "
+            f"Code: {post.code}"
 
     ),
 
     'analyze_comments': (
-    f"Analyze these comments and provide a high-level summary. "
-    f"Use exactly this format, no other text:\n"
-    f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
-    #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
-    f"2. most important points: [List of specific topics or questions mentioned]\n"
-    f"3. Sentiment: [One word]\n\n"
-    f"Respond in {user_lang}. "
-    f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
-    f"Comments: {comments_text}"
-)
-    
-}                                                                                                                                                                                             #({user_lang})                       
-        
+         f"Analyze these comments and provide a high-level summary. "
+         f"Use exactly this format, no other text:\n"
+         f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
+         #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
+         f"2. most important points: [List of specific topics or questions mentioned]\n"
+         f"3. Sentiment: [One word]\n\n"
+         f"Respond in {user_lang}. "
+         f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
+         f"Comments: {comments_text}"
+),
 
+    'code_difficulty': (
+            f"Analyze the following code snippet. "
+            f"Rules: "
+            f"1. Difficulty Level: Rate on a scale of 1 to 5 (1=Junior, 5=Expert). "
+            f"2. Reasoning: Provide a one-sentence explanation for this rating based on complexity and library usage. "
+            f"Respond in {user_lang}. "
+            f"Rules: Do not use markdown headers. No introductory phrases. "
+            f"Code: {post.code}"
+            )
+        }
+    
+                                                                                                                                                                                                  
         system_instruction = (
-    "أنت مساعد تقني ذكي. "
-    "رد بأسلوب مباشر ومهني. "
-    "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
-    "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
-)        
+            "أنت مساعد تقني ذكي. "
+            "رد بأسلوب مباشر ومهني. "
+            "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
+            "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
+                        )        
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
@@ -2465,6 +2488,7 @@ class SuggestReplyView(APIView):
         }
         payload = {
             "model": "llama-3.1-8b-instant",
+            #"model": "gemma2-9b-it",
             "messages": [{"role": "user", "content": prompt}]
         }
 

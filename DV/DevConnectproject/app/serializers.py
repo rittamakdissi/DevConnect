@@ -908,15 +908,25 @@ class SearchUserSerializer(serializers.ModelSerializer):
          return obj.personal_photo.url
       return None
     
+    # def get_is_following(self, obj):
+    #     request = self.context.get("request")
+    #     if not request or not request.user.is_authenticated:
+    #         return False
+
+    #     return Follow.objects.filter(
+    #         follower=request.user,
+    #         following=obj
+    #     ).exists()
     def get_is_following(self, obj):
+        if hasattr(obj, 'is_following'):
+           return obj.is_following
+        following_ids = self.context.get("following_ids")
+        if following_ids is not None:
+             return obj.id in following_ids
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
-            return False
-
-        return Follow.objects.filter(
-            follower=request.user,
-            following=obj
-        ).exists()
+           return False
+        return Follow.objects.filter(follower=request.user, following=obj).exists()
 
 # تبع سجل البحث يعني رح يعرضلي الكلمة يلي كتبتا وبحثت عنها
 class SearchHistorySerializer(serializers.ModelSerializer):
