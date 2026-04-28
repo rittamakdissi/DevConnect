@@ -2490,15 +2490,15 @@ class ClassifyPostAPIView(APIView):
                 if post_type not in valid:
                     post_type = "information"
 
-                #  ترجمة حسب اللغة
-                if user_lang == "ar":
-                    mapping = {
-                        "question": "سؤال",
-                        "project": "مشروع",
-                        "information": "معلومة",
-                        "article": "مقال"
-                    }
-                    post_type = mapping.get(post_type, "معلومة")
+                # #  ترجمة حسب اللغة
+                # if user_lang == "ar":
+                #     mapping = {
+                #         "question": "سؤال",
+                #         "project": "مشروع",
+                #         "information": "معلومة",
+                #         "article": "مقال"
+                #     }
+                #     post_type = mapping.get(post_type, "معلومة")
 
                 return Response({
                     "post_type": post_type
