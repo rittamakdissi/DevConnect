@@ -102,8 +102,8 @@ class MyProfileView(APIView):
     # permission_classes = [IsAuthenticated]
     def get(self, request):
         user = User.objects.filter(id=request.user.id).annotate(
-        followers_count=Count('followers_set'),
-        following_count=Count('following_set')
+        followers_count=Count('followers_set',distinct=True),
+        following_count=Count('following_set',distinct=True)
     ).first()
         serializer = MyProfileSerializer(user, context={"request": request})
         return Response(serializer.data, status=200)
@@ -138,7 +138,7 @@ class OtherUserProfileView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, user_id):
         user = User.objects.filter(pk=user_id).annotate(
-        followers_count=Count('followers_set')
+        followers_count=Count('followers_set',distinct=True),
     ).first()
         if not user:
            return Response({"message": "User not found."}, status=404)
@@ -1823,32 +1823,7 @@ class VerifyOTPView(APIView):
 
 #  توليد التاغات بالذكاء
 class SuggestTagsView(APIView):
-    # "شغالة"
-    # permission_classes = [IsAuthenticated]
-
-    # def post(self, request):
-    #     # 1. استلام النص من الفرونت إند (محتوى المنشور اللي لسه عم ينكتب)
-    #     content = request.data.get('content', '')
-
-    #     if not content:
-    #         return Response({'error': 'Please write some content first'}, status=400)
-
-    #     # 2. رابط الكولاب السحري (تأكدي أنه الرابط الفعال حالياً)
-    #     colab_url = "https://uncheapened-multimacular-gwyneth.ngrok-free.dev/suggest-tags"
-
-    #     try:
-    #         # 3. نرسل النص للكولاب ونجلب التاغات
-    #         response = requests.get(colab_url, params={"text": content}, timeout=10)
-    #         data = response.json()
-            
-    #         # 4. نرجع التاغات للفرونت إند عشان تظهر للمستخدم
-    #         return Response({
-    #             "suggested_tags": data.get('suggested_tags', [])
-    #         }, status=200)
-
-    #     except Exception as e:
-    #         return Response({'error': 'AI Assistant is offline'}, status=503)
-
+    "نهائي"
     def post(self, request):
         content = request.data.get('content', '')
 
@@ -1857,15 +1832,23 @@ class SuggestTagsView(APIView):
 
         url = "https://api.groq.com/openai/v1/chat/completions"
         
-        # البرومبت "المركّز" لاستخراج التاغات الجوهرية فقط
+       
         system_instruction = (
-            "You are a professional content classifier. Extract only the most relevant and important technical tags from the content. "
-            "Rules: "
-            "1. Return only a single line of tags separated by commas. "
-            "2. No hashtags (#), no numbers, no explanations. "
-            "3. Focus on core technologies, languages, and main topics. "
-            "4. Maximum 5 to 7 high-quality tags. "
-            "5. If the content is in Arabic, provide tags in English. If English,also in English."
+            "You are an expert in extracting high-quality technical tags.\n\n"
+
+            "TASK:\n"
+            "- Extract the MOST relevant and specific technical tags from the content.\n\n"
+
+            "STRICT RULES:\n"
+            "1. Return ONLY tags separated by commas.\n"
+            "2. NO explanations, NO sentences.\n"
+            "3. NO generic tags like 'technology', 'software', 'system'.\n"
+            "4. Focus on:\n"
+            "   - Programming languages (Python, Java, etc.)\n"
+            "   - Frameworks (Django, React, etc.)\n"
+            "   - Concepts (AI, Machine Learning, APIs, etc.)\n"
+            "5. Maximum 7 tags.\n"
+            "6. Output MUST be in English ONLY.\n"
         )
 
         payload = {
@@ -1874,7 +1857,7 @@ class SuggestTagsView(APIView):
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Extract the most important tags from this text:\n\n{content}"}
             ],
-            "temperature": 0.3 # حرارة منخفضة لضمان الدقة وعدم "التأليف"
+            "temperature": 0.3 
         }
 
         headers = {
@@ -1887,8 +1870,7 @@ class SuggestTagsView(APIView):
             response.raise_for_status()
             result = response.json()
             tags_string = result['choices'][0]['message']['content'].strip()
-            
-            # تحويل النص لـ List عشان الـ Frontend يرتاح بمعالجتها
+        
             tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
 
             return Response({
@@ -1903,71 +1885,172 @@ class SuggestTagsView(APIView):
 #شرح الكود 
 
 #هاد منبعتلو اللغة تبعت المستخدم 
+# class ExplainCodeAPIView(APIView):
+#     "شغالة" "ولكن البرومت تبع العربي بدو تعدييييل منيح "
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+
+#         user_code = request.data.get("code_content")
+#         user_lang = request.data.get("language", "en") # افتراضياً إنجليزي إذا ما انبعتت
+
+#         if not user_code:
+#             return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
+#         if user_lang == 'ar':
+#            system_instruction = (
+#     "أنت Senior Backend Developer تشرح الكود بأسلوب بشري احترافي واضح. "
+#     "ابدأ بجملة قصيرة تعطي فكرة الكود أو وظيفته بشكل مباشر بدون استخدام أي عناوين مثل (الهدف). "
+#     "بعدها اكتب فقرة واحدة تشرح اللوجيك بشكل تقني، . "
+#     "اكتب وكأنك تشرح لزميل مبرمج وليس كأنك تكتب مقال."
+#     "استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي بدون ما تخرب ترتيب الجملة. "
+#     "ركّز على كيف الكود يشتغل، شو بيعمل، وليش. "
+#     "تجنب الحشو والمقدمات العامة وخليك مباشر."
+#     "لا تكتب باللغة الروسية ابدا"
+#           )
+
+#            user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
+#         else:
+#             system_instruction = (
+#                 "You are a Senior Backend Developer. Explain the code in one focused technical paragraph starting with the Goal. "
+#                 "STRICT RULES: "
+#                 "1. Start with (Goal: [Code Function]) then proceed to technical logic. "
+#                 "2. Use professional dev language. NO 'In this code' or 'There is a class'. "
+#                 "3. NO Russian, NO markdown stars (*), NO bullet points. "
+#                 "4. Keep it concise and direct."
+#             )
+#             user_prompt = f"Give me the goal and the logic of this code in a professional dev style:\n\n{user_code}"
+#         url = "https://api.groq.com/openai/v1/chat/completions"
+ 
+#         headers = {
+#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+         
+        
+#         payload = {
+#             "model": "llama-3.3-70b-versatile",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": user_prompt}
+#             ],
+#             "temperature": 0.3 # لضمان رد رصين ومختصر
+#         }
+
+#         try: #ارسال الطلب لـ Groq
+#             response = requests.post(url, json=payload, headers=headers)
+#             result = response.json()
+            
+#             if 'choices' in result:
+#                 explanation = result['choices'][0]['message']['content'].strip()
+#                 return Response({
+#                     "explanation": explanation,
+#                     #"status": "success",
+#                     #"language_used": user_lang
+#                 }, status=status.HTTP_200_OK)
+#             else:
+#                 return Response({
+#                     "error": "Failed to get response from Groq",
+#                     "details": result
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({
+#                 "error": "Connection error",
+#                 "details": str(e)
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ExplainCodeAPIView(APIView):
-    "شغالة" "ولكن البرومت تبع العربي بدو تعدييييل منيح "
+    "نهائي"
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
         user_code = request.data.get("code_content")
-        user_lang = request.data.get("language", "en") # افتراضياً إنجليزي إذا ما انبعتت
+        user_lang = request.data.get("language", "en")  
 
         if not user_code:
-            return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
-        if user_lang == 'ar':
-           system_instruction = (
-    "أنت Senior Backend Developer تشرح الكود بأسلوب بشري احترافي واضح. "
-    "ابدأ بجملة قصيرة تعطي فكرة الكود أو وظيفته بشكل مباشر بدون استخدام أي عناوين مثل (الهدف). "
-    "بعدها اكتب فقرة واحدة تشرح اللوجيك بشكل تقني، . "
-    "اكتب وكأنك تشرح لزميل مبرمج وليس كأنك تكتب مقال."
-    "استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي بدون ما تخرب ترتيب الجملة. "
-    "ركّز على كيف الكود يشتغل، شو بيعمل، وليش. "
-    "تجنب الحشو والمقدمات العامة وخليك مباشر."
-    "لا تكتب باللغة الروسية ابدا"
-          )
+            return Response(
+                {"error": "No code content provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-           user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
+        #  اختيار البرومبت حسب اللغة
+        if user_lang == 'ar':
+            system_instruction = (
+                "أنت Senior Backend Developer تشرح الكود لزميل مبرمج.\n\n"
+
+                "RULES:\n"
+                "- ابدأ بجملة قصيرة توضح الفكرة العامة مباشرة.\n"
+                "- بعدها اشرح هالكود في فقرة واحدة فقط.\n"
+                "- لا تستخدم عناوين.\n"
+                "- لا تستخدم نقاط أو lists.\n"
+                "- لا تكرر الكلام.\n"
+                "- لا تكتب شرح عام أو نظري.\n"
+                "- ركّز على كيف الكود يشتغل فعلياً.\n"
+                "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي.\n"
+                "- خليك مختصر ودقيق.\n"
+                "- لا تكتب أي لغة غير العربية.\n"
+            )
+
+            user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
+
         else:
             system_instruction = (
-                "You are a Senior Backend Developer. Explain the code in one focused technical paragraph starting with the Goal. "
-                "STRICT RULES: "
-                "1. Start with (Goal: [Code Function]) then proceed to technical logic. "
-                "2. Use professional dev language. NO 'In this code' or 'There is a class'. "
-                "3. NO Russian, NO markdown stars (*), NO bullet points. "
-                "4. Keep it concise and direct."
+                "You are a Senior Backend Developer explaining code to another developer.\n\n"
+
+                "RULES:\n"
+                "1. Start with: Main Idea: [clear function of the code]\n"
+                "2. Then explain the logic in ONE paragraph only.\n"
+                "3. No bullet points, no lists.\n"
+                "4. No generic phrases.\n"
+                "5. Be concise and technical.\n"
+                "6. Focus on how the code works internally.\n"
             )
-            user_prompt = f"Give me the goal and the logic of this code in a professional dev style:\n\n{user_code}"
+
+            user_prompt = f"Explain this code:\n\n{user_code}"
+
+        # إعداد الطلب
         url = "https://api.groq.com/openai/v1/chat/completions"
- 
+
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
-         
-        
+
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.3 # لضمان رد رصين ومختصر
+            "temperature": 0.3,
+            "max_tokens": 500
         }
 
-        try: #ارسال الطلب لـ Groq
-            response = requests.post(url, json=payload, headers=headers)
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=20)
             result = response.json()
-            
-            if 'choices' in result:
+
+            if 'choices' in result and result['choices']:
                 explanation = result['choices'][0]['message']['content'].strip()
+                explanation = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', explanation)
+
+                explanation = explanation.replace("شفرة برمجية", "كود")
+                explanation = explanation.replace("الشفرة", "الكود")
+                explanation = explanation.replace("شفرة", "كود")
+
+                explanation = explanation.replace("الفئة", "الكلاس")
+                explanation = explanation.replace("فئة", "كلاس")
+
+                if not explanation:
+                    explanation = "No explanation generated"
+
                 return Response({
                     "explanation": explanation,
-                    #"status": "success",
-                    #"language_used": user_lang
                 }, status=status.HTTP_200_OK)
+
             else:
                 return Response({
-                    "error": "Failed to get response from Groq",
+                    "error": "Failed to get response from AI",
                     "details": result
                 }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1976,7 +2059,6 @@ class ExplainCodeAPIView(APIView):
                 "error": "Connection error",
                 "details": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 # هاد الكود بيشرح بالعربي فقط 
 # class ExplainCodeAPIView(APIView):
@@ -2039,97 +2121,233 @@ class ExplainCodeAPIView(APIView):
 
 
 ####################################################################################
+
+
+# class GeneratePostAPIView(APIView):
+#     """
+#    بيكتشف اللغة تلقائياً وبيولد منشور احترافي بناءً على المحتوى
+#     """
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         # 1. استلام محتوى المنشور (سواء كان فكرة أو مسودة)
+#         user_content = request.data.get("content")
+
+#         if not user_content:
+#             return Response({"error": "No content provided to enhance"}, status=status.HTTP_400_BAD_REQUEST)
+
+# #         # 2. التعليمات الذكية (توجيه الموديل ليرد بنفس اللغة تلقائياً)
+# #         system_instruction = (
+# #     "You are a top-tier Tech Influencer and Social Media Strategist. "
+# #     "Your goal is to turn boring ideas into 'VIRAL' posts. "
+# #     "STYLE RULES: "
+# #     "1. Hook the reader with a powerful first sentence. "
+# #     "2. Use a professional yet 'enthusiastic' and modern tone. "
+# #     "3. Keep it exactly 5 punchy sentences. "
+# #     "4. NO robot talk (e.g., avoid 'In conclusion', 'It is important to'). "
+# #     "5. Use the SAME LANGUAGE as the user (Arabic or English).no russian.no other language "
+# #     "6. NO translations, NO explanations. Just the post."
+#         system_instruction = (
+# "You are a top-tier Tech Influencer and Social Media Strategist. "
+# "Your goal is to turn ideas into VIRAL posts. "
+
+# "LANGUAGE RULES: "
+# "If the input is Arabic: "
+# "- Write in natural, human Arabic (not formal, not translated). "
+# "- Use smooth, conversational tone like real social media posts. "
+# "- Avoid literal translation from English. "
+# "- Keep sentences short, punchy, and well-flowing. "
+
+# "If the input is English: "
+# "- Use a modern, enthusiastic, professional tone. "
+
+# "GENERAL RULES: "
+# "- Think about the idea in English first, then write in the user's language. "
+# "- Hook the reader with a strong first sentence. "
+# "- Write exactly 5 punchy sentences. "
+# "- No robotic phrases. No introductions. "
+# "- No Russian, no other languages."
+# )
+
+
+#         # 3. إعدادات Groq
+#         url = "https://api.groq.com/openai/v1/chat/completions"
+        
+#         headers = {
+#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+        
+#         payload = {
+#              #"model": "gemma2-9b-it",
+#             # "model": "llama-3.1-8b-instant",
+#             "model": "llama-3.3-70b-versatile",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": f"Enhance this content into a 5-sentence post: {user_content}"}
+#             ],
+#             "temperature": 0.4,
+#             "max_tokens":300
+
+#         }
+
+#         try:
+#             response = requests.post(url, json=payload, headers=headers,timeout=20)
+#             result = response.json()
+            
+#             if 'choices' in result:
+#                 enhanced_post = result['choices'][0]['message']['content'].strip()
+                
+#                 return Response({
+#                     "enhanced_post": enhanced_post,
+#                 }, status=status.HTTP_200_OK)
+#             else:
+#                 return Response({"error": "AI Generation failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class GeneratePostAPIView(APIView):
-    """
-   بيكتشف اللغة تلقائياً وبيولد منشور احترافي بناءً على المحتوى
-    """
+    "نهائي"
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # 1. استلام محتوى المنشور (سواء كان فكرة أو مسودة)
         user_content = request.data.get("content")
 
         if not user_content:
-            return Response({"error": "No content provided to enhance"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "No content provided to enhance"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # 2. التعليمات الذكية (توجيه الموديل ليرد بنفس اللغة تلقائياً)
         system_instruction = (
-    "You are a top-tier Tech Influencer and Social Media Strategist. "
-    "Your goal is to turn boring ideas into 'VIRAL' posts. "
-    "STYLE RULES: "
-    "1. Hook the reader with a powerful first sentence. "
-    "2. Use a professional yet 'enthusiastic' and modern tone. "
-    "3. Keep it exactly 5 punchy sentences. "
-    "4. NO robot talk (e.g., avoid 'In conclusion', 'It is important to'). "
-    "5. Use the SAME LANGUAGE as the user (Arabic or English).no russian.no other language "
-    "6. NO translations, NO explanations. Just the post."
-)
+            "You are a top-tier Tech Influencer and Social Media Strategist. "
+            "Your goal is to turn ideas into VIRAL posts.\n\n"
 
+            "LANGUAGE RULES:\n"
+            "- Detect the language of the input automatically.\n"
+            "- If the input is clearly English → respond in English ONLY.\n"
+            "- If the input is clearly Arabic → respond in Arabic ONLY.\n"
+            "- NEVER switch language or translate.\n\n"
 
-        # 3. إعدادات Groq
+            "ARABIC STYLE (when input is Arabic):\n"
+            "- Write like a REAL human, not a translator.\n"
+            "- Use simple, smooth, conversational Arabic.\n"
+            "- Avoid formal, textbook, or heavy Arabic.\n"
+            "- DO NOT translate from English literally.\n"
+            "- Use natural phrasing like real social media posts.\n"
+            "- Keep flow between sentences (important).\n"
+            "- Fix any broken words or typos in the input.\n"
+            "- Do NOT copy strange characters or corrupted text.\n"
+            "- Prefer short sentences over long complex ones.\n\n"
+            "- Make it sound like how people actually post on LinkedIn or Twitter.\n"
+
+            "ENGLISH STYLE:\n"
+            "- Modern, confident, engaging tone.\n\n"
+
+            "GENERAL RULES:\n"
+            "- Think in English internally, but output in user's language.\n"
+            "- Start with a strong hook.\n"
+            "- Write EXACTLY 5 punchy sentences.\n"
+            "- No robotic phrases.\n"
+            "- No introductions.\n"
+            "- No hashtags.\n"
+            "- No emojis.\n"
+            "- No Russian or other languages.\n"
+            "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
+        )
+
         url = "https://api.groq.com/openai/v1/chat/completions"
-        
+
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
-        
+
         payload = {
-             "model": "gemma2-9b-it",
-            # "model": "llama-3.1-8b-instant",
-             #"model": "llama-3.3-70b-versatile",
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Enhance this content into a 5-sentence post: {user_content}"}
+                {
+                    "role": "user",
+                    "content": f"""
+                        Detect the language of this text and respond in the SAME language.
+                        IMPORTANT:
+                        If the text is Arabic, REWRITE it in a clean, natural, human way (not translation).
+                        Turn it into a viral 5-sentence post:
+                        {user_content}
+                        """            }
             ],
-            "temperature": 0.5,
-            "max_tokens":300
-
+            "temperature": 0.35,  #  خففناه ليصير أضبط بالعربي
+            "max_tokens": 300
         }
 
         try:
-            response = requests.post(url, json=payload, headers=headers,timeout=20)
-            result = response.json()
+            response = requests.post(url, json=payload, headers=headers, timeout=20)
             
+            if response.status_code != 200:
+                return Response(
+                    {"error": "Groq API error", "details": response.text},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            result = response.json()
+
             if 'choices' in result:
                 enhanced_post = result['choices'][0]['message']['content'].strip()
-                
+                enhanced_post = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', enhanced_post)
                 return Response({
                     "enhanced_post": enhanced_post,
                 }, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "AI Generation failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response(
+                {"error": "AI Generation failed", "details": result},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         except Exception as e:
-            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            return Response(
+                {"error": "Connection error", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )      
 
 ##################################################################################################
 class ImprovePostAPIView(APIView):
-    """
-    لتحسين صياغة النص وجعله أكثر احترافية 
-    """
+    "نهائي"
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # 1. استلام النص المراد تحسينه
         user_text = request.data.get("content")
 
         if not user_text:
             return Response({"error": "No text provided to improve"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. التعليمات (البرومبت الخاص بالتحسين فقط)
         system_instruction = (
             "You are a professional multilingual editor. "
-            "Task: Rewrite the user's text to be clearer, more professional, and grammatically correct. "
-            "STRICT RULES: "
-            "1. Keep the EXACT same meaning. "
-            "2. Respond ONLY with the improved text in the SAME LANGUAGE as the input. "
-            "3. Do NOT add hashtags, do NOT add explanations, and NO introductory text. "
-            "4. If the input is Arabic, the output MUST be professional Arabic. "
-            "5. If the input is English, the output MUST be professional English."
-            "6. NO Russian, NO other languages."
-        )
+            "Your task is to improve the user's text while keeping the exact meaning.\n\n"
+            #"- Use strong, professional wording instead of basic or vague phrases.\n"
+
+            "LANGUAGE RULES:\n"
+            "- Detect the input language automatically.\n"
+            "- If the input is English → respond in English ONLY.\n"
+            "- If the input is Arabic → respond in Arabic ONLY.\n"
+            "- NEVER translate.\n\n"
+
+            "ARABIC RULES:\n"
+            "- Rewrite in clean, natural, human Arabic.\n"
+            "- Avoid formal or academic language.\n"
+            "- Make it smooth and easy to read.\n\n"
+
+            "GENERAL RULES:\n"
+            "- Fix grammar, clarity, and flow.\n"
+            "- Do NOT change the meaning.\n"
+            "- Do NOT add extra information.\n"
+            "- Do NOT add hashtags or explanations.\n"
+            "- Do NOT generate strange characters or corrupted symbols.\n"
+            "- If the text has typos, fix them.\n"
+            "- Do NOT explain your reasoning."
+            " Do NOT output any thinking process."
+                )
+        
         url = "https://api.groq.com/openai/v1/chat/completions"
         
         headers = {
@@ -2138,107 +2356,165 @@ class ImprovePostAPIView(APIView):
         }
         
         payload = {
-             "model": "gemma2-9b-it",
-            #"model": "llama-3.1-8b-instant",
+            #"model": "gemma2-9b-it",
+            "model": "llama-3.3-70b-versatile",
+            #"model": "qwen/qwen3-32b",
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Rewrite this professionally: {user_text}"}
+                {"role": "user", "content": f"""
+                    Detect the language of this text.
+                    IMPORTANT:
+                        - If it's English → respond in English ONLY.
+                        - If it's Arabic → respond in Arabic ONLY.
+                        - Do NOT translate.
+                         Rewrite it professionally:{user_text}"""   }
             ],
-            "temperature": 0.3, # حرارة أقل لضمان عدم "تأليف" كلام جديد
-            "max_tokens": 300
+            "temperature": 0.2 ,
+             "max_tokens": 300
         }
-
         try:
-            # طلب التحسين
-            response = requests.post(url, json=payload, headers=headers, timeout=20)
-            result = response.json()
-            
-            if 'choices' in result:
+          response = requests.post(url, json=payload, headers=headers, timeout=20)
+          result = response.json()
+          if 'choices' in result:
                 improved_text = result['choices'][0]['message']['content'].strip()
-                
+        # تنظيف النص من المحارف الغريبة
+                improved_text = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', improved_text)                
                 return Response({
                     "improved_text": improved_text,
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "AI Improvement failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
+                     }, status=status.HTTP_200_OK)
+
+          else:
+               return Response({
+                "error": "AI Improvement failed",
+                 "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({
+        "error": "Connection error",
+        "details": str(e)
+    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
 ########################################################################
+  
 class ClassifyPostAPIView(APIView):
-    """
-    API لتصنيف المنشور إلى فئات محددة (Question, Project, Problem, Information, Article)
-    """
+    "نهائي"
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         user_content = request.data.get("content")
+        user_lang = request.data.get("language", "en")
 
         if not user_content:
-            return Response({"error": "No content provided to classify"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. التعليمات الصارمة للتصنيف
-        # system_instruction = (
-        #     "You are a highly accurate content classifier. "
-        #     "Task: Classify the user's text into ONLY ONE of these categories: "
-        #     "[question, project, problem, information, article]. "
-        #     "STRICT RULES: "
-        #     "1. Response MUST be exactly one word from the list. "
-        #     "2. NO explanations, NO punctuation, NO introductory text. "
-        #     "3. Output MUST be in English lowercase."
-        # )
         system_instruction = (
-              "You are a linguistic expert specialized in classifying tech content. "
-             "Classify the text ONLY into: [question, project, problem, information, article]. "
-             "GUIDELINES: "
-             "1. [question]: If it asks something directly or uses words like 'أتساءل', 'هل', 'كيف', 'ما هو'. "
-             "2. [article]: If it's a long, analytical, or formal text discussing trends, economy, or future (like the Middle East example). "
-             "3. [information]: Only for short, direct facts (e.g., 'Python is easy'). "
-             "5. [project]: If the user says 'I built', 'I finished', 'My work'. "
-         "STRICT: Respond with ONE word only. No punctuation. No explanations."
+            "You are a highly accurate classifier for tech content.\n\n"
+
+            "Classify the input into EXACTLY ONE of these categories:\n"
+            "[question, project, information, article]\n\n"
+
+            "DEFINITIONS:\n"
+            "- question: asking something (how, why, what, هل, كيف)\n"
+            " project: user built, created, developed, finished, or worked on something "
+            "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
+             "even if the sentence also includes explanation or opinion\n"            "- information: short factual or simple statement\n"
+            "- article: long, analytical, or opinion-based content\n\n"
+
+            "STRICT RULES:\n"
+            "- Output ONLY one word\n"
+            "- No punctuation\n"
+            "- No explanation\n"
+            "- No extra text\n"
         )
+#         system_instruction = (
+#     "You are a highly accurate classifier for tech content.\n\n"
 
+#     "Classify the input into EXACTLY ONE of these categories:\n"
+#     "[question, project, information, article]\n\n"
 
+#     "DEFINITIONS:\n"
+
+#     "- question: asking something (how, why, what, هل, كيف) OR any indirect question or doubt.\n"
+
+#     "- project: if the user mentions building, creating, developing, finishing, or working on something "
+#     "(e.g., 'I built', 'I created', 'I finished', 'I worked on', 'اشتغلت على', 'سويت', 'بنيت', 'طورت'), "
+#     "EVEN if it includes explanation or opinion.\n"
+
+#     "- information: ONLY short, direct factual statements with NO personal opinion, NO experience, NO story.\n"
+
+#     "- article: any content that includes opinion, explanation, reflection, or trends, "
+#     "especially if it does NOT describe building something.\n\n"
+
+#     "STRICT RULES:\n"
+#     "- If user built or worked on something → project\n"
+#     "- If there is ANY question → question\n"
+#     "- Use 'information' ONLY for pure facts\n"
+#     "- Otherwise → article\n\n"
+
+#     "OUTPUT RULES:\n"
+#     "- Output ONLY one word\n"
+#     "- No punctuation\n"
+#     "- No explanation\n"
+#     "- Lowercase only"
+# )  
         url = "https://api.groq.com/openai/v1/chat/completions"
-        
+
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
-        
+
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Classify this text: {user_content}"}
+                {"role": "user", "content": user_content}
             ],
-            "temperature": 0.1, # حرارة شبه صفرية لضمان الدقة وعدم التشتت
-            "max_tokens": 10    # بدنا كلمة وحدة بس، فـ 10 توكن كافيين جداً
+            "temperature": 0.0,
+            "max_tokens": 5
         }
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=15)
             result = response.json()
-            
+
             if 'choices' in result:
                 post_type = result['choices'][0]['message']['content'].strip().lower()
-                
-                # تنظيف النتيجة من أي نقطة أو فراغ إضافي
+
                 post_type = "".join(filter(str.isalpha, post_type))
-                
+
+                valid = ["question", "project", "information", "article"]
+                if post_type not in valid:
+                    post_type = "information"
+
+                #  ترجمة حسب اللغة
+                if user_lang == "ar":
+                    mapping = {
+                        "question": "سؤال",
+                        "project": "مشروع",
+                        "information": "معلومة",
+                        "article": "مقال"
+                    }
+                    post_type = mapping.get(post_type, "معلومة")
+
                 return Response({
-                    "post_type": post_type,
+                    "post_type": post_type
                 }, status=status.HTTP_200_OK)
+
             else:
-                return Response({"error": "Classification failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                    "error": "Classification failed",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
 
 
