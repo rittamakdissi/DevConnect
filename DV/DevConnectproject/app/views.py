@@ -807,41 +807,6 @@ class PostUpdateDeleteView(APIView):
         post.delete()
         return Response({"message": "Post deleted successfully"}, status=200)
 ######################################################################################    
- #feedاظهار منشورات ال   
-# class FeedView(APIView):
-#     """شغالة"""
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         user = request.user
-
-#         # الأشخاص يلي المستخدم بيتابعن
-#         following_ids = user.following_set.values_list(
-#             "following_id", flat=True
-#         )
-    
-#         # جلب منشوراتهم
-#         posts = Post.objects.filter(user_id__in=following_ids)
-
-#         # 🔹 فلترة حسب نوع المنشور (اختياري)
-#         post_type = request.GET.get("type")
-#         if post_type:
-#             posts = posts.filter(post_type=post_type)
-
-#         # 🔹 ترتيب (افتراضي: الأحدث)
-#         ordering = request.GET.get("ordering", "desc")
-#         if ordering == "asc":
-#             posts = posts.order_by("created_at")
-#         else:
-#             posts = posts.order_by("-created_at")
-
-#         serializer = PostSerializer(
-#             posts,
-#             many=True,
-#             context={"request": request}
-#         )
-#         return Response(serializer.data, status=200)
-
 class FeedView(APIView):
     "شغالة"
     permission_classes = [IsAuthenticated]
@@ -878,7 +843,12 @@ class FeedView(APIView):
 
         # 3. تجميع الـ IDs وتحديد الأسباب في قاموس (reasons_map)
         reasons_map = {}
-
+        my_posts_ids = list(
+           Post.objects.filter(user=user)
+           .values_list('id', flat=True)
+         )
+        for p_id in my_posts_ids:
+             reasons_map[p_id] = ""
         # أ. بوستات المتابعين
         following_posts_ids = list(Post.objects.filter(user_id__in=following_ids).values_list('id', flat=True))
         for p_id in following_posts_ids:
@@ -912,7 +882,7 @@ class FeedView(APIView):
                 reasons_map[p_id] = "Trending 🔥"
 
         # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
-        all_ids = following_posts_ids + interest_posts_ids + trending_posts_ids
+        all_ids = my_posts_ids+following_posts_ids + interest_posts_ids + trending_posts_ids
         final_posts = Post.objects.filter(id__in=all_ids)\
             .select_related('user')\
             .prefetch_related('images')\
@@ -935,12 +905,10 @@ class FeedView(APIView):
         #     )
         # ).order_by('priority', '-created_at')
         paginator = PageNumberPagination()
-        paginator.page_size = 10  # عرض 10 بوستات في كل صفحة
+        paginator.page_size = 5  # عرض 5 بوستات في كل صفحة
         
-        # تنفيذ التقطيع (Slicing) بناءً على رقم الصفحة في الـ URL
         result_page = paginator.paginate_queryset(final_posts, request)
 
-        # 5. حقن سبب الظهور في الكائنات المقطعة فقط (لتحسين الأداء)
         for post in result_page:
             post.suggestion_reason = reasons_map.get(post.id, "")
         # following_ids_set = set(
@@ -951,7 +919,6 @@ class FeedView(APIView):
              Reaction.objects.filter(user=request.user, post__in=result_page)
             .values_list('post_id', 'reaction_type')
              )
-        # 6. السيريالايزر والرد باستخدام paginator.get_paginated_response
         #serializer = PostSerializer(result_page, many=True, context={'request': request})
         serializer = PostSerializer(result_page, many=True, context={
          'request': request,
@@ -959,106 +926,6 @@ class FeedView(APIView):
          'user_reactions': user_reactions_map,
 })
         return paginator.get_paginated_response(serializer.data)
-
-#هاد بدون الpagination
-# class FeedView(APIView):
-#     "شغالة"
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         user = request.user
-#         
-#         # 1. جلب IDs الأشخاص المتابَعين
-#         following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
-
-#         # 2. استخراج التاغات المهتمة فيها بناءً على آخر 10 تفاعلات
-#         # مع استثناء البوستات يلي بتفاعل فيها ب غير مفيد
-#         user_reactions = Reaction.objects.filter(user=user)\
-#          .exclude(reaction_type='not_useful')\
-#           .select_related('post')\
-#           .order_by('-created_at')[:10] 
-
-
-#         interested_tags = []
-#         for r in user_reactions:
-#             if r.post.tags:
-#                 tags_list = r.post.tags 
-#                 if isinstance(tags_list, list):
-#                     interested_tags.extend(tags_list)
-#                 else:
-#                     # تحسباً لو كانت التاغات مخزنة كنص مفصول بفاصلة
-#                     tags_list = str(r.post.tags).replace(',', ' ').split()
-#                     interested_tags.extend(tags_list)
-#         
-#         # استخدام Counter لجلب أكثر 3 تاغات تكراراً (الأكثر اهتماماً)
-#         tag_counts = Counter(interested_tags)
-#         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
-
-#         # 3. تجميع الـ IDs وتحديد الأسباب في قاموس (reasons_map)
-#         reasons_map = {}
-
-#         # أ. بوستات المتابعين
-#         following_posts_ids = list(Post.objects.filter(user_id__in=following_ids).values_list('id', flat=True))
-#         for p_id in following_posts_ids:
-#             reasons_map[p_id] = "Following"
-
-#         # ب. بوستات الاهتمامات
-#         interest_posts_ids = []
-#         if unique_tags: 
-#             tag_query = Q()
-#             for tag in unique_tags:
-#                 tag_query |= Q(tags__icontains=tag)
-#             
-#             interest_posts_ids = list(Post.objects.filter(tag_query)
-#                 .exclude(user_id__in=following_ids)
-#                 .exclude(user=user)
-#                 .values_list('id', flat=True)[:10])
-#             
-#             for p_id in interest_posts_ids:
-#                 if p_id not in reasons_map: # لا نغير السبب إذا كان البوست أصلاً من المتابعين
-#                     reasons_map[p_id] = "Based on your interests" #Suggested for you
-
-#         # ج. بوستات الترند (أكثر تفاعل بآخر 3 أيام)
-#         last_3_days = timezone.now() - timedelta(days=3)
-#         trending_posts_ids = list(Post.objects.filter(created_at__gte=last_3_days)
-#             .annotate(reactions_count=Count('reactions'))
-#             .order_by('-reactions_count')
-#             .values_list('id', flat=True)[:10])
-#         
-#         for p_id in trending_posts_ids:
-#             if p_id not in reasons_map: # لا نغير السبب إذا كان موجوداً مسبقاً
-#                 reasons_map[p_id] = "Trending 🔥"
-
-#         # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
-#         all_ids = following_posts_ids + interest_posts_ids + trending_posts_ids
-#         final_posts = Post.objects.filter(id__in=all_ids).distinct()
-
-#         # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
-#         post_type = request.GET.get("type")
-#         if post_type:
-#             final_posts = final_posts.filter(post_type=post_type)
-
-#         # الترتيب الزمني النهائي (الأحدث أولاً)
-#         final_posts = final_posts.order_by('-created_at')
-
-#      # هاد في حال حبينا دائما نجيب منشورات الاشخاص يلي منتابعن بالاول
-#         # final_posts = final_posts.annotate(
-#         #   priority=Case(
-#         #     When(user_id__in=following_ids, then=Value(1)), # المتابعين لهم الأولوية 1
-#         #     default=Value(2),                              # المقترح له الأولوية 2
-#         #     output_field=IntegerField(),
-#         #     )
-#         # ).order_by('priority', '-created_at')
-#         
-
-#         # 5. حقن سبب الظهور في كل كائن بوست ليعالجه السيريالايزر
-#         for post in final_posts:
-#             post.suggestion_reason = reasons_map.get(post.id, "")
-
-#         # 6. إرسال البيانات للسيريالايزر والرد
-#         serializer = PostSerializer(final_posts, many=True, context={'request': request})
-#         return Response(serializer.data)
-
 
 
 #اقتراح مستخدمين بناءً على التخصص
@@ -2208,7 +2075,8 @@ class GeneratePostAPIView(APIView):
         }
         
         payload = {
-            "model": "llama-3.1-8b-instant",
+             "model": "gemma2-9b-it",
+            # "model": "llama-3.1-8b-instant",
              #"model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
@@ -2270,7 +2138,8 @@ class ImprovePostAPIView(APIView):
         }
         
         payload = {
-            "model": "llama-3.1-8b-instant",
+             "model": "gemma2-9b-it",
+            #"model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Rewrite this professionally: {user_text}"}
@@ -2329,21 +2198,10 @@ class ClassifyPostAPIView(APIView):
              "1. [question]: If it asks something directly or uses words like 'أتساءل', 'هل', 'كيف', 'ما هو'. "
              "2. [article]: If it's a long, analytical, or formal text discussing trends, economy, or future (like the Middle East example). "
              "3. [information]: Only for short, direct facts (e.g., 'Python is easy'). "
-             "4. [problem]: If the user is stuck, reporting an error, or needs help. "
              "5. [project]: If the user says 'I built', 'I finished', 'My work'. "
          "STRICT: Respond with ONE word only. No punctuation. No explanations."
         )
-#         system_instruction = (
-#     "You are an expert logical analyzer for developer content. "
-#     "To classify, follow this hierarchy: "
-#     "1. If there is ANY error, bug, or 'معضلة/مشكلة', classify as [problem]. "
-#     "2. If there is ANY 'تساؤل' or '؟' or a request for opinion, classify as [question]. "
-#     "3. If the user mentions 'عملت/طورت/مشروعي', classify as [project]. "
-#     "4. If it's a long educational/opinion piece without a specific problem, classify as [article]. "
-#     "5. Only use [information] for short, dry facts. "
-#     "PRIORITY: problem > question > project > article > information. "
-#     "Respond with ONLY ONE WORD."
-# )
+
 
         url = "https://api.groq.com/openai/v1/chat/completions"
         
@@ -2383,84 +2241,247 @@ class ClassifyPostAPIView(APIView):
 
             
 
-class AskAIView(APIView):
-    def post(self, request):
-        post_id = request.data.get('post_id')
-        action = request.data.get('action')  # (summarize, explain_code, analyze_comments)
-        user_lang = request.data.get('lang', 'ar')
+
+
+
+# class AskAIView(APIView):
+#     def post(self, request):
+#         post_id = request.data.get('post_id')
+#         action = request.data.get('action')  # (summarize, explain_code, analyze_comments)
+#         user_lang = request.data.get('lang', 'ar')
         
-        post = get_object_or_404(Post, id=post_id)
-        comments = Comment.objects.filter(post=post).values_list('content', flat=True)
-        comments_text = "\n".join(comments)
+#         post = get_object_or_404(Post, id=post_id)
+#         comments = Comment.objects.filter(post=post).values_list('content', flat=True)
+#         comments_text = "\n".join(comments)
+#         comments_context = ""
+#         if action == 'find_best_answer':
+#             # استعلام ذكي جداً: حساب السكور داخل الـ DB والترتيب والحصر بـ 15
+#             comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
+#                 computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+#                 computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
+#             ).annotate(
+#                 score=F('computed_useful') - F('computed_not_useful')
+#             ).order_by('-score')[:15].prefetch_related('replies')
 
-        # قواميس البرومبتات (عشان الكود يضل مرتب)
-            # التعديل هون في الـ f-string
-        prompts = {
-    'summarize': (
-        f"Provide a summary of the content. "
-        f"Text to summarize: {post.content}"
-        f"Structure your response exactly like this: "
-        f"1. Start with a one-sentence General Overview of the topic. "
-        f"2. Follow with exactly 3 numbered key technical takeaways. "
-        f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases."
-    ),
+#             # بناء النص للـ AI
+#             for comment in comments:
+#                 comments_context += f"\n[Main Comment ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
+#                 for reply in comment.replies.all():
+#                     comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
+#         else:
+#             # للـ Actions الأخرى (Summarize, etc)
+#             comments = Comment.objects.filter(post=post).values_list('content', flat=True)
+#             comments_context = "\n".join(comments)
+
+#         # قواميس البرومبتات (عشان الكود يضل مرتب)
+#             # التعديل هون في الـ f-string
+#         prompts = {
+#     'summarize': (
+#         f"Provide a summary of the content. "
+#         f"Text to summarize: {post.content}"
+#         f"Structure your response exactly like this: "
+#         f"1. Start with a one-sentence General Overview of the topic. "
+#         f"2. Follow with exactly 3 numbered key technical takeaways. "
+#         f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases."
+#     ),
     
-    'explain_code': (
-            f"Analyze the following code strictly. "
-            f"Rules: "
-            f"1. State the core idea of the code in exactly one sentence. "
-            f"2. Explain what the code does clearly and concisely. "
-            f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
-            f"Respond in {user_lang}. "
-            f"Code: {post.code}"
+#     'explain_code': (
+#             f"Analyze the following code strictly. "
+#             f"Rules: "
+#             f"1. State the core idea of the code in exactly one sentence. "
+#             f"2. Explain what the code does clearly and concisely. "
+#             f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
+#             f"Respond in {user_lang}. "
+#             f"Code: {post.code}"
 
-    ),
+#     ),
 
-    'analyze_comments': (
-         f"Analyze these comments and provide a high-level summary. "
-         f"Use exactly this format, no other text:\n"
-         f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
-         #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
-         f"2. most important points: [List of specific topics or questions mentioned]\n"
-         f"3. Sentiment: [One word]\n\n"
-         f"Respond in {user_lang}. "
-         f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
-         f"Comments: {comments_text}"
-),
+#     'analyze_comments': (
+#          f"Analyze these comments and provide a high-level summary. "
+#          f"Use exactly this format, no other text:\n"
+#          f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
+#          #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
+#          f"2. most important points: [List of specific topics or questions mentioned]\n"
+#          f"3. Sentiment: [One word]\n\n"
+#          f"Respond in {user_lang}. "
+#          f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
+#          f"Comments: {comments_text}"
+# ),
 
-    'code_difficulty': (
-            f"Analyze the following code snippet. "
-            f"Rules: "
-            f"1. Difficulty Level: Rate on a scale of 1 to 5 (1=Junior, 5=Expert). "
-            f"2. Reasoning: Provide a one-sentence explanation for this rating based on complexity and library usage. "
-            f"Respond in {user_lang}. "
-            f"Rules: Do not use markdown headers. No introductory phrases. "
-            f"Code: {post.code}"
-            )
-        }
+#     'code_difficulty': (
+#             f"Analyze the following code snippet. "
+#             f"Rules: "
+#             f"1. Difficulty Level: Rate on a scale of 1 to 5 (1=Junior, 5=Expert). "
+#             f"2. Reasoning: Provide a one-sentence explanation for this rating based on complexity and library usage. "
+#             f"Respond in {user_lang}. "
+#             f"Rules: Do not use markdown headers. No introductory phrases. "
+#             f"Code: {post.code}"
+#             ),
+#     #     'find_best_answer': (
+#     # f"You are an expert technical auditor. Analyze the following post and its comments. "
+#     # f"Your goal is to extract the most technically accurate and helpful and best solution to the question asked in the post. "
+#     # f"Rules: "
+#     # f"1. Use the 'Score' provided for each main comment to gauge community consensus. "
+#     # f"2. Consider content in replies as they might contain corrections or better solutions. "
+#     # f"3. Cite which perspective is most valuable without saying 'Commenter X said'. "
+#     # f"4. If no clear answer exists, state that 'No definitive solution was found in the discussion'. "
+#     # f"Respond in {user_lang}. "
+#     # f"Post Question: {post.content} "
+#     # f"Comments: {comments_text}"
+#     'find_best_answer': (
+#                 f"You are a data extraction engine. "
+#                 f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
+#                 f"Rules:\n"
+#                 f"1. DO NOT summarize the discussion. DO NOT write an essay.\n"
+#                 f"2. Output ONLY in the following format:\n"
+#                 f"ID: [The ID of the best comment or reply]\n"
+#                 f"Content: [Copy the exact content of the comment or reply]\n"
+#                 f"Reasoning: [One short sentence explaining why this is the best solution]\n"
+#                 f"3. If there is no solution, respond with: 'No definitive solution found'.\n\n"
+#                  f"Respond in {user_lang}. "
+#                  f"Post Question: {post.content}"
+#                 f"Data (Comments and Replies):\n{comments_context}"
+#             )
+   
+#         }
+
     
                                                                                                                                                                                                   
-        system_instruction = (
-            "أنت مساعد تقني ذكي. "
-            "رد بأسلوب مباشر ومهني. "
-            "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
-            "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
-                        )        
+#         system_instruction = (
+#             "أنت مساعد تقني ذكي. "
+#             "رد بأسلوب مباشر ومهني. "
+#             "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
+#             "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
+#                         )        
+#         payload = {
+#             "model": "llama-3.1-8b-instant",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": prompts.get(action, "Explain this")}
+#             ],
+#             "temperature": 0.3
+#         }
+        
+#         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+        
+#         # نداء الـ Groq API
+#         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        
+#         return Response(response.json()['choices'][0]['message']['content'])            
+
+import json
+import requests
+from django.conf import settings
+from django.shortcuts import get_object_or_404
+from django.db.models import Count, Q, F
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Post, Comment
+
+class AskAIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        post_id = request.data.get('post_id')
+        action = request.data.get('action') 
+        user_lang = request.data.get('lang', 'ar')
+        post = get_object_or_404(Post, id=post_id)
+        
+        # تحضير السياق للـ AI
+        if action == 'find_best_answer':
+            comments_context = ""
+            top_comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
+                computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+                computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
+            ).annotate(score=F('computed_useful') - F('computed_not_useful')).order_by('-score')[:15].prefetch_related('replies')
+
+            for comment in top_comments:
+                comments_context += f"\n[ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
+                for reply in comment.replies.all():
+                    comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
+        else:
+            comments_context = "\n".join(Comment.objects.filter(post=post).values_list('content', flat=True))
+
+        # القواميس (استخدمت نصوصك الأصلية مع إضافة شرط الـ JSON)
+        prompts = {
+            'summarize': (
+                f"Provide a summary of the content: {post.content}. "
+                f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases. "
+                f"Structure your response exactly as a JSON object: "
+                f"{{'overview': 'One-sentence General Overview of the topic', 'takeaways': ['Takeaway 1', 'Takeaway 2', 'Takeaway 3']}}"
+            ),
+            
+            'explain_code': (
+                f"Analyze the following code strictly: {post.code}. "
+                f"Respond in {user_lang}. "
+                f"Rules: 1. State the core idea in exactly one sentence. 2. Explain clearly. 3. Do NOT add suggestions/lectures. "
+                f"Return ONLY a JSON object: {{'core_idea': 'string', 'explanation': 'string'}}"
+            ),
+            
+            'analyze_comments': (
+                f"Analyze these comments: {comments_context}. "
+                f"Respond in {user_lang}. Rules: No polite filler, no intro. "
+                f"Structure your response exactly as a JSON object: "
+                f"{{'discussion_summary': 'brief narrative summary', 'most_important_points': ['point 1', 'point 2'], 'sentiment': 'one word'}}"
+            ),
+
+            'code_difficulty': (
+                f"Analyze the following code snippet: {post.code}. "
+                f"Respond in {user_lang}. Rules: No markdown headers, no intro. "
+                f"Structure your response exactly as a JSON object: "
+                f"{{'difficulty_level': 1_to_5_integer, 'reasoning': 'one-sentence explanation'}}"
+            ),
+            
+            # 'find_best_answer': (
+            #     f"You are a data extraction engine. Identify the SINGLE most technically accurate comment that solves the user's problem. "
+            #     f"Post Question: {post.content}. Data: {comments_context}. "
+            #     f"Respond in {user_lang}. "
+            #     f"Return ONLY a JSON object: "
+            #     f"{{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
+            #     f"If no solution found, use comment_id: null."
+            # )
+            'find_best_answer': (
+                f"You are a data extraction engine. "
+                f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
+                f"The user provided a post and potentially a code snippet. Evaluate the comments based on how well they solve the problem given the context. "
+                f"Post Question: {post.content} "
+                f"Code Snippet: {getattr(post, 'code', 'No code provided')} "
+                f"Data (Comments and Replies):\n{comments_context} "
+                f"Return ONLY a JSON object: {{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
+                f"If no solution found, use comment_id: null."
+            ),
+        }
+
+        # نداء الـ API
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": system_instruction},
+                {"role": "system", "content": "You are a JSON API. Respond ONLY with valid JSON structure as requested. No extra text."},
                 {"role": "user", "content": prompts.get(action, "Explain this")}
             ],
-            "temperature": 0.3
+            "temperature": 0.2
         }
         
         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
         
-        # نداء الـ Groq API
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        
-        return Response(response.json()['choices'][0]['message']['content'])            
+        try:
+            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
+            ai_content = response.json()['choices'][0]['message']['content']
+            
+            # تنظيف الـ JSON
+            clean_json = ai_content.replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean_json)
+            return Response(data, status=200)
+            
+        except Exception as e:
+            return Response({"error": "Failed to process", "details": str(e)}, status=500)
+
+
+
+
+
+
 
 
 
