@@ -209,7 +209,8 @@ EMAIL_USE_SSL = False
 EMAIL_TIMEOUT = 30
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
+#DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
+DEFAULT_FROM_EMAIL = 'DevConnect <a9a587001@smtp-brevo.com>'
 
 # هاد ليطبع على ريندر
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
