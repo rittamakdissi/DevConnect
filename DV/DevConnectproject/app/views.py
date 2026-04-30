@@ -2240,6 +2240,8 @@ class GeneratePostAPIView(APIView):
             "- Do NOT copy strange characters or corrupted text.\n"
             "- Prefer short sentences over long complex ones.\n\n"
             "- Make it sound like how people actually post on LinkedIn or Twitter.\n"
+            "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Do NOT translate or transliterate technical terms into Arabic.\n"
 
             "ENGLISH STYLE:\n"
             "- Modern, confident, engaging tone.\n\n"
@@ -2253,6 +2255,8 @@ class GeneratePostAPIView(APIView):
             "- No hashtags.\n"
             "- No emojis.\n"
             "- No Russian or other languages.\n"
+             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Do NOT translate or transliterate technical terms into Arabic.\n"
             "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
         )
 
@@ -2336,11 +2340,16 @@ class ImprovePostAPIView(APIView):
             "- Rewrite in clean, natural, human Arabic.\n"
             "- Avoid formal or academic language.\n"
             "- Make it smooth and easy to read.\n\n"
+            "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Do NOT translate or transliterate technical terms into Arabic.\n"
+
 
             "GENERAL RULES:\n"
             "- Fix grammar, clarity, and flow.\n"
             "- Do NOT change the meaning.\n"
             "- Do NOT add extra information.\n"
+            "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Do NOT translate or transliterate technical terms into Arabic.\n"
             "- Do NOT add hashtags or explanations.\n"
             "- Do NOT generate strange characters or corrupted symbols.\n"
             "- If the text has typos, fix them.\n"

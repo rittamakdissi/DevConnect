@@ -28,8 +28,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-is(a*q4nlqru$f_#20(+^8w%o#bxfxl4h=+*)!74fjtbe^ab3c'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
-#DEBUG = True
+#DEBUG = False
+DEBUG = True
 
 
 #ALLOWED_HOSTS = ['*']
@@ -210,7 +210,8 @@ EMAIL_TIMEOUT = 30
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 #DEFAULT_FROM_EMAIL = 'DevConnect <rittamakdissi@gmail.com>'
-DEFAULT_FROM_EMAIL = 'DevConnect <a9a587001@smtp-brevo.com>'
+#DEFAULT_FROM_EMAIL = 'DevConnect <a9a587001@smtp-brevo.com>'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
 # هاد ليطبع على ريندر
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
