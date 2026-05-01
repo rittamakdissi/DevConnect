@@ -1288,11 +1288,16 @@ class SearchHistoryView(APIView):
         # =====================
         if search_type == "people":  # برجعلي حسابات الاشخاص يلي فتت عليون
             usernames = [h.query for h in history_qs]
+            history_map = {h.query: h.id for h in history_qs} 
             users_map={u.username: u for u in User.objects.filter(username__in=usernames).exclude(id=request.user.id)}
             sorted_users=[]
             for name in usernames:
-              if name  in users_map:
-                sorted_users.append(users_map[name])
+               if name  in users_map:
+            #     sorted_users.append(users_map[name])
+                   sorted_users.append({
+                      "id": history_map.get(name),  # ← id سجل البحث
+                      "user": SearchUserSerializer(users_map[name], context={"request": request}).data
+            })
            
            
             # users = (
@@ -1313,7 +1318,8 @@ class SearchHistoryView(APIView):
             return Response({
                 "type": "people",
                 #"count": len(serializer.data),
-                "results": serializer.data
+                #"results": serializer.data
+                "results": sorted_users
             })
 
         # =====================
@@ -1325,6 +1331,7 @@ class SearchHistoryView(APIView):
                 #"count": history_qs.count(),
                 "results": [
                     {
+                        "id":h.id,
                         "query": h.query,
                         #"searched_at": h.created_at
                     }
@@ -1341,6 +1348,7 @@ class SearchHistoryView(APIView):
                 #"count": history_qs.count(),
                 "results": [
                     {
+                        "id":h.id,
                         "query": h.query,
                         #"searched_at": h.created_at
                     }
