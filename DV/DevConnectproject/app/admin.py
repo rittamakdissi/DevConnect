@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PasswordResetCode, User, Post, Follow, Media,Comment,Reaction,CommentReaction,Notification,AiTask,SearchHistory
+from .models import PasswordResetCode, User, Post, Follow, Media,Comment,Reaction,CommentReaction,Notification,AiTask,SearchHistory,SavedPost
 #from django.contrib.auth.admin import UserAdmin
 
 
@@ -15,3 +15,5 @@ admin.site.register(Notification)
 admin.site.register(AiTask)
 admin.site.register(SearchHistory)
 admin.site.register(PasswordResetCode)
+admin.site.register(SavedPost)
+

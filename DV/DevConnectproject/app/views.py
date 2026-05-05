@@ -66,28 +66,6 @@ class RegisterView(APIView):
 
 
 
-# زدت هاد
-# Login 
-# class LoginView(APIView):
-#     permission_classes = [AllowAny]
-
-#     serializer_class = LoginSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-        
-#         # إذا كان الـ Serializer صحيحاً، استخرجي المستخدم
-#         user = serializer.validated_data['user']
-        
-#         # أنشئي الـ Token يدوياً
-#         refresh = RefreshToken.for_user(user)
-        
-#         return Response({
-#             'refresh': str(refresh),
-#             'access': str(refresh.access_token),
-#         })
-
 
 
 
@@ -105,7 +83,11 @@ class MyProfileView(APIView):
         followers_count=Count('followers_set',distinct=True),
         following_count=Count('following_set',distinct=True)
     ).first()
-        serializer = MyProfileSerializer(user, context={"request": request})
+        saved_ids = set(
+            SavedPost.objects.filter(user=request.user)
+            .values_list("post_id", flat=True)
+         )
+        serializer = MyProfileSerializer(user, context={"request": request,"saved_ids": saved_ids,})
         return Response(serializer.data, status=200)
 
 
@@ -142,7 +124,11 @@ class OtherUserProfileView(APIView):
     ).first()
         if not user:
            return Response({"message": "User not found."}, status=404)
-        serializer = OtherUserProfileSerializer(user, context={"request": request})
+        saved_ids = set(
+            SavedPost.objects.filter(user=request.user)
+            .values_list("post_id", flat=True)
+         )
+        serializer = OtherUserProfileSerializer(user, context={"request": request,"saved_ids": saved_ids,})
         return Response(serializer.data, status=200)
 
 
@@ -377,43 +363,7 @@ class ReactToPostView(APIView):
             }, status=200)
 
         return Response(serializer.errors, status=400)
-    
-# class ReactToPostView(APIView):
-#     """ هاد الصح ومنحطو بعد ما نعمل البوست"""
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, post_id):
-#          post = get_object_or_404(Post, id=post_id)
-
-#          serializer = ReactionSerializer(
-#              data=request.data,
-#              context={"request": request, "post": post}
-#          )
-
-#          if serializer.is_valid():
-#             reaction = serializer.save()
-
-#             # بعد كل عملية (إضافة - تعديل - حذف) نجلب البوست مع العدادات
-#             updated_post_data = PostSerializer(post, context={"request": request}).data
-
-#             # حذف التفاعل
-#             if reaction is None:
-#                 return Response({
-#                     "message": "Reaction removed.",
-#                     "post": updated_post_data   # 🔥 البيانات الجديدة مباشرة
-#                 }, status=200)
-
-#             # إضافة / تعديل
-#             return Response({
-#                 "message": "Reaction added or updated.",
-#                 "post": updated_post_data,   # 🔥 البوست بعد التحديث
-#                 "reaction": ReactionSerializer(reaction).data
-#             }, status=200)
-
-#          return Response(serializer.errors, status=400)
-
-
-
+ 
 
 # عرض قائمة المستخدمين الذين عملوا تفاعل معين على منشور معين
 class ReactionUsersListView(APIView):
@@ -479,27 +429,8 @@ class PostCommentsView(APIView):
         return Response(serializer.data, status=200)  
 
 
-#لجلب ردود تعليق معيّن
-# class CommentRepliesView(APIView):
-#     """شغالة"""
-#     permission_classes = [IsAuthenticated]
 
-#     # def get(self, request, comment_id):
-#     #     comment = get_object_or_404(Comment, id=comment_id)
 
-#     #     replies = comment.replies.all().order_by("-created_at")
-
-#     #     serializer = CommentSerializer(replies, many=True, context={"request": request})
-#     #     return Response(serializer.data, status=200)
-#     def get(self, request, comment_id):
-#        post = get_object_or_404(Comment, id=comment_id)
-#        comments = post.comments.filter(parent=None).select_related('user').annotate(
-#            computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
-#            computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful')),
-#            computed_replies=Count('replies')
-#     )
-#        serializer = CommentSerializer(comments, many=True, context={"request": request})
-#        return Response(serializer.data, status=200)
 class CommentRepliesView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -549,34 +480,6 @@ class CommentCreateView(APIView):
         return Response(serializer.errors, status=400)
     
 
-  #Create comment OR reply
-# class CommentCreateView(APIView):
-""" هاد الصح ومنحطو بعد ما نعمل البوست"""
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, post_id):
-#         post = get_object_or_404(Post, id=post_id)
-
-#         serializer = CommentCreateSerializer(
-#             data=request.data,
-#             context={"request": request, "post": post}
-#         )
-
-#         if serializer.is_valid():
-#             comment = serializer.save()
-
-#             # 🔥 بعد إنشاء التعليق → نجلب البوست مع عدادات التعليقات الجديدة
-#             updated_post_data = PostSerializer(post, context={"request": request}).data
-
-#             return Response({
-#                 "message": "Comment created successfully",
-#                 "comment": CommentSerializer(comment, context={"request": request}).data,
-#                 "post": updated_post_data  # ← البيانات الجديدة + total_comments محدث
-#             }, status=201)
-
-#         return Response(serializer.errors, status=400)
-
-
 
 
 
@@ -607,42 +510,6 @@ class CommentReactionView(APIView):
             }, status=200)
 
         return Response(serializer.errors, status=400)
-#Add or change reaction on comment
-# class CommentReactionView(APIView):
-""" هاد الصح ومنحطو بعد ما نعمل البوست"""
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, comment_id):
-#         comment = get_object_or_404(Comment, id=comment_id)
-
-#         serializer = CommentReactionSerializer(
-#             data=request.data,
-#             context={"request": request, "comment": comment},
-#         )
-
-#         if serializer.is_valid():
-#             reaction = serializer.save()
-
-#             # 🔥 بعد أي تعديل أو حذف → نعمل serialize للتعليق المحدث
-#             updated_comment_data = CommentSerializer(comment, context={"request": request}).data
-
-#             # ❌ حذف التفاعل (ضغط نفس النوع)
-#             if reaction is None:
-#                 return Response({
-#                     "message": "Reaction removed.",
-#                     "comment": updated_comment_data     # ← العدادات بعد الحذف
-#                 }, status=200)
-
-#             # ✔ إضافة أو تعديل تفاعل
-#             return Response({
-#                 "message": "Reaction added or updated.",
-#                 "reaction": CommentReactionSerializer(reaction).data,
-#                 "comment": updated_comment_data        # ← العدادات بعد التعديل
-#             }, status=200)
-
-#         return Response(serializer.errors, status=400)
-
-
 
 
 
@@ -650,6 +517,16 @@ class CommentReactionView(APIView):
 class CommentDetailView(APIView):
     """شغالة"""
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, comment_id):
+        comment=Comment.objects.filter(id=comment_id).select_related('user').annotate(
+            computed_useful=Count('reactions',filter=Q(reactions__reaction_type='useful')),
+            computed_not_useful=Count('reactions',filter=Q(reactions__reaction_type='not_useful')),
+            computed_replies=Count('replies')).first()
+        if not comment:
+            return Response({"message":"Comment not found"},status=404)
+        return Response(CommentSerializer(comment,context={"request":request}).data,status=200)
+        
 
     def put(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id)
@@ -667,9 +544,9 @@ class CommentDetailView(APIView):
                    computed_replies=Count('replies')
               ).first()
             return Response({
-    "message": "Comment updated successfully",
-    "data": CommentSerializer(comment, context={"request": request}).data
-         }, status=200)
+                "message": "Comment updated successfully",
+                "data": CommentSerializer(comment, context={"request": request}).data
+                    }, status=200)
         return Response(serializer.errors, status=400)
 
     def delete(self, request, comment_id):
@@ -680,48 +557,7 @@ class CommentDetailView(APIView):
 
         comment.delete()
         return Response({"message": "Comment deleted successfully"}, status=200)
-#تعديل تعليق و الحذف 
-# class CommentDetailView(APIView):
-""" هاد الصح ومنحطو بعد ما نعمل البوست"""
 
-#     permission_classes = [IsAuthenticated]
-
-#     def put(self, request, comment_id):
-#         comment = get_object_or_404(Comment, id=comment_id)
-
-#         # مستخدم غير صاحب التعليق → رفض
-#         if comment.user != request.user:
-#             return Response({"message": "You are not allowed to edit this comment."}, status=403)
-
-#         serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
-#         if serializer.is_valid():
-#             serializer.save()
-
-#             # 🔥 نرجّع معلومات التعليق بعد التحديث
-#             updated_comment = CommentSerializer(comment, context={"request": request}).data
-
-#             return Response({
-#                 "message": "Comment updated successfully",
-#                 "comment": updated_comment
-#             }, status=200)
-
-#         return Response(serializer.errors, status=400)
-
-#     def delete(self, request, comment_id):
-#         comment = get_object_or_404(Comment, id=comment_id)
-
-#         if comment.user != request.user:
-#             return Response({"message": "You are not allowed to delete this comment."}, status=403)
-
-#         post = comment.post  # مهم جداً قبل الحذف
-
-#         comment.delete()
-
-#         # 🔥 نرجع عدد التعليقات الجديد مباشرة بعد الحذف
-#         return Response({
-#             "message": "Comment deleted successfully",
-#             "total_comments": post.total_comments
-#         }, status=200)
 
 ##########################################################################################
 class CreatePostView(APIView):
@@ -759,7 +595,12 @@ class PostDetailView(APIView):
             ).first()
         if not post:
             return Response({"message": "Post not found."}, status=404)
-        serializer = PostSerializer(post, context={"request": request})
+        saved_ids = set(
+            SavedPost.objects.filter(user=request.user)
+            .values_list("post_id", flat=True)
+)
+        serializer = PostSerializer(post, context={"request": request,
+        "saved_ids": saved_ids,})
         return Response(serializer.data, status=200)
     
 
@@ -806,6 +647,62 @@ class PostUpdateDeleteView(APIView):
 
         post.delete()
         return Response({"message": "Post deleted successfully"}, status=200)
+####################################################################################  
+# حفظ أو إلغاء حفظ منشور
+class ToggleSavePostView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        post = get_object_or_404(Post, id=post_id)
+        existing = SavedPost.objects.filter(user=request.user, post=post).first()
+
+        if existing:
+            existing.delete()
+            return Response({"message": "Post unsaved.", "is_saved": False}, status=200)
+
+        SavedPost.objects.create(user=request.user, post=post)
+        return Response({"message": "Post saved.", "is_saved": True}, status=201)
+
+
+# جلب المنشورات المحفوظة
+class SavedPostsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        posts = Post.objects.filter(
+            saved_by__user=request.user
+        ).select_related(
+            "user"
+        ).prefetch_related(
+            "images"
+        ).annotate(
+            total_comments=Count("comments")
+        ).order_by("-saved_by__created_at")
+
+        saved_ids = set(
+            SavedPost.objects.filter(user=request.user)
+            .values_list("post_id", flat=True)
+        )
+        following_ids = set(
+            Follow.objects.filter(follower=request.user)
+            .values_list("following_id", flat=True)
+        )
+        user_reactions = dict(
+            Reaction.objects.filter(user=request.user, post__in=posts)
+            .values_list("post_id", "reaction_type")
+        )
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        result_page = paginator.paginate_queryset(posts, request)
+
+        serializer = PostSerializer(result_page, many=True, context={
+            "request": request,
+            "saved_ids": saved_ids,
+            "following_ids": following_ids,
+            "user_reactions": user_reactions,
+        })
+        return paginator.get_paginated_response(serializer.data)
 ######################################################################################    
 class FeedView(APIView):
     "شغالة"
@@ -919,11 +816,16 @@ class FeedView(APIView):
              Reaction.objects.filter(user=request.user, post__in=result_page)
             .values_list('post_id', 'reaction_type')
              )
+        saved_ids = set(
+          SavedPost.objects.filter(user=request.user)
+          .values_list("post_id", flat=True)
+)
         #serializer = PostSerializer(result_page, many=True, context={'request': request})
         serializer = PostSerializer(result_page, many=True, context={
          'request': request,
          'following_ids': following_ids,
          'user_reactions': user_reactions_map,
+         'saved_ids': saved_ids
 })
         return paginator.get_paginated_response(serializer.data)
 
@@ -994,52 +896,8 @@ class SuggestedUsersView(APIView):
     }
 )
         return Response(serializer.data, status=200)
+  
 
-
-##############################################################
-#لبعدين منجربن ومنشوف شو وضعن
-
-
-# # لانشاء مهمة ذكاء اصطناعي جديدة
-# class CreateAiTaskView(APIView):
-    """مو شغالة لانو ما نعمل الذكاء الاصطناعي ومانا مجربة"""
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         serializer = AiTaskCreateSerializer(
-#             data=request.data,
-#             context={"request": request}
-#         )
-
-#         if serializer.is_valid():
-#             task = serializer.save()
-
-#             return Response(
-#                 AiTaskSerializer(task).data,
-#                 status=201
-#             )
-
-#         return Response(serializer.errors, status=400)  
-# 
-#   
-# #جلب تفاصيل مهمة ذكاء اصطناعي معينة واحدة 
-# class AiTaskDetailView(APIView):
-                  #  """مو شغالة لانو ما نعمل الذكاء الاصطناعي ومانا مجربة"""
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, task_id):
-#         task = get_object_or_404(
-#             AiTask,
-#             id=task_id,
-#             user=request.user
-#         )
-
-#         return Response(
-#             AiTaskSerializer(task).data,
-#             status=200
-#         )    
-    
-# """#بجوز يكون اسا بدنا وحدة لجلب مهام بوست معين    """
 ###########################################################################
 
 
@@ -1142,10 +1000,14 @@ class SearchView(APIView):
                 "message": "no matching results found",
                 "results": []
             })
+            saved_ids = set(
+                    SavedPost.objects.filter(user=request.user)
+                    .values_list("post_id", flat=True)
+                )
             serializer = PostSerializer(
                page,
                many=True,
-              context={"request": request}
+              context={"request": request, "saved_ids": saved_ids}
             )
 
             SearchHistory.objects.update_or_create(
@@ -1214,11 +1076,14 @@ class SearchView(APIView):
                 "message": "no matching results found",
                 "results": []
             })
-
+          saved_ids = set(
+                    SavedPost.objects.filter(user=request.user)
+                    .values_list("post_id", flat=True)
+                )
           serializer = PostSerializer(
             page,
             many=True,
-            context={"request": request}
+            context={"request": request, "saved_ids": saved_ids}
         )
 
           SearchHistory.objects.update_or_create(
@@ -1512,47 +1377,8 @@ class SearchSuggestionsView(APIView):
         #         "results": results
         #    })
         return Response([])    
-#####################################################################################
-# class ImprovePostView(APIView):
-
-#     def post(self, request):
-
-#         content = request.data.get("content","")
-
-#         if not content:
-#             return Response(
-#                 {"error": "content is required"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         improved = improve_post_text(content)
-
-#         return Response({
-#             "original": content,
-#             "ai_improved": improved
-#         })
 
 
-# # استدعاء الدالة اللي جهزناها على Colab
-# from .ai.improve_post import improve_text  # هنا دالتك اللي في Colab أو محلية
-
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-
-# def improve_post_api(request):
-#     """
-#     Endpoint لتحسين النصوص:
-#     - يتلقى JSON: { "content": "النص" }
-#     - يرجع JSON: { "improved": "النص المحسن" }
-#     """
-#     content = request.data.get("content", "")
-#     if not content:
-#         return Response({"error": "No content provided"}, status=400)
-
-#     # نرسل النص للنموذج لتحسينه
-#     improved_text = improve_text(content)
-
-#     return Response({"improved": improved_text})
 #################################################################################################  
 
 # ترجمة المنشور

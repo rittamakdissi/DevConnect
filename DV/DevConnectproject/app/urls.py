@@ -86,6 +86,12 @@ urlpatterns = [
 
     # تعديل + حذف
     path("posts/<int:post_id>/edit/", PostUpdateDeleteView.as_view(), name="post-edit"),
+    
+    #لحفظ او ازالة الحفظ  لمنشور 
+    path("posts/<int:post_id>/save/", ToggleSavePostView.as_view(), name="toggle-save-post"),
+
+    #لارجاع البوستات المحفوظة
+    path("posts/saved/", SavedPostsListView.as_view(), name="saved-posts"),
 
     #feed posts وبتاخد كويري مشان فلترة البوستات حسب النوع
     path("feed/", FeedView.as_view(), name="feed"),

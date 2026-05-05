@@ -279,7 +279,7 @@ class ChangePasswordSerializer(serializers.Serializer):
 
         # 1) التحقق من كلمة السر القديمة
         if not user.check_password(data["old_password"]):
-            raise serializers.ValidationError({"old_password": "Old password is incorrect."})
+            raise serializers.ValidationError({"old_password": "Current password is incorrect."})
 
         # 2) التأكد من أن الباسورد الجديد غير القديم
         if data["old_password"] == data["new_password"]:
@@ -676,6 +676,8 @@ class PostSerializer(serializers.ModelSerializer):
     is_following = serializers.SerializerMethodField()
     suggestion_reason = serializers.ReadOnlyField() 
     # اذا ما بدي يطلع هاد الحقل لما ابحث عن المنشورات بعمل سيريلايزر جديد وبشيل منو هاد الحقل فقط
+    is_saved = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Post
@@ -684,6 +686,7 @@ class PostSerializer(serializers.ModelSerializer):
             "user",
             "is_following",
             "suggestion_reason",
+            "is_saved",
             "content",
             "code",
             "code_language",
@@ -743,6 +746,14 @@ class PostSerializer(serializers.ModelSerializer):
          reaction = Reaction.objects.filter(user=request.user, post=obj).first()
          return reaction.reaction_type if reaction else None
 
+    def get_is_saved(self, obj):
+          saved_ids = self.context.get("saved_ids")
+          if saved_ids is not None:
+              return obj.id in saved_ids
+          request = self.context.get("request")
+          if not request or not request.user.is_authenticated:
+               return False
+          return SavedPost.objects.filter(user=request.user, post=obj).exists()
 
 
 #تعديل البوست او حذفه
@@ -1012,3 +1023,21 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 
 ############################################################################
+class SavedPostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedPost
+        fields = ["id", "post", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate(self, data):
+        user = self.context["request"].user
+        post = data["post"]
+        if SavedPost.objects.filter(user=user, post=post).exists():
+            raise serializers.ValidationError("Post already saved.")
+        return data
+
+    def create(self, validated_data):
+        return SavedPost.objects.create(
+            user=self.context["request"].user,
+            post=validated_data["post"]
+        )
