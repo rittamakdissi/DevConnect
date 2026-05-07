@@ -28,30 +28,56 @@ if firebase_json:
 else:
     print("Firebase configuration not found. Notifications will be disabled.")
 
-def send_push_notification(token, title, body, extra_data=None):
-    """
-    token: عنوان المتصفح اللي رح يستلم
-    title: عنوان الإشعار اللي رح يظهر فوق
-    body: نص الإشعار
-    extra_data: البيانات التقنية (target_id, target_type)
-    """
-    if not firebase_admin._apps:
-        print("Firebase is not initialized. Cannot send notification.")
-        return None
+
+
+
+
+# def send_push_notification(token, title, body, extra_data=None):
+#     """
+#     token: عنوان المتصفح اللي رح يستلم
+#     title: عنوان الإشعار اللي رح يظهر فوق
+#     body: نص الإشعار
+#     extra_data: البيانات التقنية (target_id, target_type)
+#     """
+#     if not firebase_admin._apps:
+#         print("Firebase is not initialized. Cannot send notification.")
+#         return None
     
-    message = messaging.Message(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        # الـ data لازم تكون كلها نصوص (Strings) عشان Firebase يقبلها
-        data=extra_data or {},
-        token=token,
-    )
+#     message = messaging.Message(
+#         notification=messaging.Notification(
+#             title=title,
+#             body=body,
+#         ),
+#         # الـ data لازم تكون كلها نصوص (Strings) عشان Firebase يقبلها
+#         data=extra_data or {},
+#         token=token,
+#     )
+#     try:
+#         response = messaging.send(message)
+#         print('Successfully sent message:', response)
+#         return response
+#     except Exception as e:
+#         print('Error sending message:', e)
+#         return None
+
+def send_push_notification(token, title, body, data=None):
     try:
+        if not firebase_admin._apps:
+            print("Firebase not initialized!")
+            return None
+            
+        # ضيفي هاد مؤقتاً
+        print(f"Sending to token: {token[:20]}...")
+        
+        message = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            data=data or {},
+            token=token,
+        )
         response = messaging.send(message)
-        print('Successfully sent message:', response)
+        print(f"Success: {response}")
         return response
     except Exception as e:
-        print('Error sending message:', e)
+        print(f"Error sending message: {e}")
+        print(f"Error type: {type(e)}")
         return None

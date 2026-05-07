@@ -2363,238 +2363,478 @@ class ClassifyPostAPIView(APIView):
 
 
 
-# class AskAIView(APIView):
-#     def post(self, request):
-#         post_id = request.data.get('post_id')
-#         action = request.data.get('action')  # (summarize, explain_code, analyze_comments)
-#         user_lang = request.data.get('lang', 'ar')
-        
-#         post = get_object_or_404(Post, id=post_id)
-#         comments = Comment.objects.filter(post=post).values_list('content', flat=True)
-#         comments_text = "\n".join(comments)
-#         comments_context = ""
-#         if action == 'find_best_answer':
-#             # استعلام ذكي جداً: حساب السكور داخل الـ DB والترتيب والحصر بـ 15
-#             comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
-#                 computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
-#                 computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
-#             ).annotate(
-#                 score=F('computed_useful') - F('computed_not_useful')
-#             ).order_by('-score')[:15].prefetch_related('replies')
-
-#             # بناء النص للـ AI
-#             for comment in comments:
-#                 comments_context += f"\n[Main Comment ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
-#                 for reply in comment.replies.all():
-#                     comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
-#         else:
-#             # للـ Actions الأخرى (Summarize, etc)
-#             comments = Comment.objects.filter(post=post).values_list('content', flat=True)
-#             comments_context = "\n".join(comments)
-
-#         # قواميس البرومبتات (عشان الكود يضل مرتب)
-#             # التعديل هون في الـ f-string
-#         prompts = {
-#     'summarize': (
-#         f"Provide a summary of the content. "
-#         f"Text to summarize: {post.content}"
-#         f"Structure your response exactly like this: "
-#         f"1. Start with a one-sentence General Overview of the topic. "
-#         f"2. Follow with exactly 3 numbered key technical takeaways. "
-#         f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases."
-#     ),
-    
-#     'explain_code': (
-#             f"Analyze the following code strictly. "
-#             f"Rules: "
-#             f"1. State the core idea of the code in exactly one sentence. "
-#             f"2. Explain what the code does clearly and concisely. "
-#             f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
-#             f"Respond in {user_lang}. "
-#             f"Code: {post.code}"
-
-#     ),
-
-#     'analyze_comments': (
-#          f"Analyze these comments and provide a high-level summary. "
-#          f"Use exactly this format, no other text:\n"
-#          f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
-#          #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
-#          f"2. most important points: [List of specific topics or questions mentioned]\n"
-#          f"3. Sentiment: [One word]\n\n"
-#          f"Respond in {user_lang}. "
-#          f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
-#          f"Comments: {comments_text}"
-# ),
-
-#     'code_difficulty': (
-#             f"Analyze the following code snippet. "
-#             f"Rules: "
-#             f"1. Difficulty Level: Rate on a scale of 1 to 5 (1=Junior, 5=Expert). "
-#             f"2. Reasoning: Provide a one-sentence explanation for this rating based on complexity and library usage. "
-#             f"Respond in {user_lang}. "
-#             f"Rules: Do not use markdown headers. No introductory phrases. "
-#             f"Code: {post.code}"
-#             ),
-#     #     'find_best_answer': (
-#     # f"You are an expert technical auditor. Analyze the following post and its comments. "
-#     # f"Your goal is to extract the most technically accurate and helpful and best solution to the question asked in the post. "
-#     # f"Rules: "
-#     # f"1. Use the 'Score' provided for each main comment to gauge community consensus. "
-#     # f"2. Consider content in replies as they might contain corrections or better solutions. "
-#     # f"3. Cite which perspective is most valuable without saying 'Commenter X said'. "
-#     # f"4. If no clear answer exists, state that 'No definitive solution was found in the discussion'. "
-#     # f"Respond in {user_lang}. "
-#     # f"Post Question: {post.content} "
-#     # f"Comments: {comments_text}"
-#     'find_best_answer': (
-#                 f"You are a data extraction engine. "
-#                 f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
-#                 f"Rules:\n"
-#                 f"1. DO NOT summarize the discussion. DO NOT write an essay.\n"
-#                 f"2. Output ONLY in the following format:\n"
-#                 f"ID: [The ID of the best comment or reply]\n"
-#                 f"Content: [Copy the exact content of the comment or reply]\n"
-#                 f"Reasoning: [One short sentence explaining why this is the best solution]\n"
-#                 f"3. If there is no solution, respond with: 'No definitive solution found'.\n\n"
-#                  f"Respond in {user_lang}. "
-#                  f"Post Question: {post.content}"
-#                 f"Data (Comments and Replies):\n{comments_context}"
-#             )
-   
-#         }
-
-    
-                                                                                                                                                                                                  
-#         system_instruction = (
-#             "أنت مساعد تقني ذكي. "
-#             "رد بأسلوب مباشر ومهني. "
-#             "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
-#             "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
-#                         )        
-#         payload = {
-#             "model": "llama-3.1-8b-instant",
-#             "messages": [
-#                 {"role": "system", "content": system_instruction},
-#                 {"role": "user", "content": prompts.get(action, "Explain this")}
-#             ],
-#             "temperature": 0.3
-#         }
-        
-#         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-        
-#         # نداء الـ Groq API
-#         response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-        
-#         return Response(response.json()['choices'][0]['message']['content'])            
-
-import json
-import requests
-from django.conf import settings
-from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q, F
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from .models import Post, Comment
-
 class AskAIView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
         post_id = request.data.get('post_id')
-        action = request.data.get('action') 
+        action = request.data.get('action')  # (summarize, explain_code, analyze_comments)
         user_lang = request.data.get('lang', 'ar')
-        post = get_object_or_404(Post, id=post_id)
         
-        # تحضير السياق للـ AI
+        post = get_object_or_404(Post, id=post_id)
+        comments = Comment.objects.filter(post=post).values_list('content', flat=True)
+        comments_text = "\n".join(comments)
+        comments_context = ""
         if action == 'find_best_answer':
-            comments_context = ""
-            top_comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
+            # استعلام ذكي جداً: حساب السكور داخل الـ DB والترتيب والحصر بـ 15
+            comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
                 computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
                 computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
-            ).annotate(score=F('computed_useful') - F('computed_not_useful')).order_by('-score')[:15].prefetch_related('replies')
+            ).annotate(
+                score=F('computed_useful') - F('computed_not_useful')
+            ).order_by('-score')[:15].prefetch_related('replies')
 
-            for comment in top_comments:
-                comments_context += f"\n[ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
+            # بناء النص للـ AI
+            for comment in comments:
+                comments_context += f"\n[Main Comment ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
                 for reply in comment.replies.all():
                     comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
         else:
-            comments_context = "\n".join(Comment.objects.filter(post=post).values_list('content', flat=True))
+            # للـ Actions الأخرى (Summarize, etc)
+            comments = Comment.objects.filter(post=post).values_list('content', flat=True)
+            comments_context = "\n".join(comments)
 
-        # القواميس (استخدمت نصوصك الأصلية مع إضافة شرط الـ JSON)
+        # قواميس البرومبتات (عشان الكود يضل مرتب)
+            # التعديل هون في الـ f-string
         prompts = {
-            'summarize': (
-                f"Provide a summary of the content: {post.content}. "
-                f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases. "
-                f"Structure your response exactly as a JSON object: "
-                f"{{'overview': 'One-sentence General Overview of the topic', 'takeaways': ['Takeaway 1', 'Takeaway 2', 'Takeaway 3']}}"
-            ),
-            
-            'explain_code': (
-                f"Analyze the following code strictly: {post.code}. "
-                f"Respond in {user_lang}. "
-                f"Rules: 1. State the core idea in exactly one sentence. 2. Explain clearly. 3. Do NOT add suggestions/lectures. "
-                f"Return ONLY a JSON object: {{'core_idea': 'string', 'explanation': 'string'}}"
-            ),
-            
-            'analyze_comments': (
-                f"Analyze these comments: {comments_context}. "
-                f"Respond in {user_lang}. Rules: No polite filler, no intro. "
-                f"Structure your response exactly as a JSON object: "
-                f"{{'discussion_summary': 'brief narrative summary', 'most_important_points': ['point 1', 'point 2'], 'sentiment': 'one word'}}"
-            ),
+    'summarize': (
+        f"Provide a summary of the content. "
+        f"Text to summarize: {post.content}"
+        f"Structure your response exactly like this: "
+        f"1. Start with a one-sentence General Overview of the topic. "
+        f"2. Follow with exactly 3 numbered key technical takeaways. "
+        f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases."
+    ),
+    
+    'explain_code': (
+            f"Analyze the following code strictly. "
+            f"Rules: "
+            f"1. State the core idea of the code in exactly one sentence. "
+            f"2. Explain what the code does clearly and concisely. "
+            f"3. Do NOT add suggestions, best practices, optimizations, or lecture about the code. "
+            f"Respond in {user_lang}. "
+            f"Code: {post.code}"
 
-            'code_difficulty': (
-                f"Analyze the following code snippet: {post.code}. "
-                f"Respond in {user_lang}. Rules: No markdown headers, no intro. "
-                f"Structure your response exactly as a JSON object: "
-                f"{{'difficulty_level': 1_to_5_integer, 'reasoning': 'one-sentence explanation'}}"
+    ),
+
+    'analyze_comments': (
+         f"Analyze these comments and provide a high-level summary. "
+         f"Use exactly this format, no other text:\n"
+         f"1. Discussion Summary: [Provide a brief, narrative summary of the main points, disagreements, or consensus reached in the discussion]\n"
+         #f"1. Main Focus: [One sentence describing the core theme or consensus of the audience]\n"
+         f"2. most important points: [List of specific topics or questions mentioned]\n"
+         f"3. Sentiment: [One word]\n\n"
+         f"Respond in {user_lang}. "
+         f"Rules: Do not use polite filler, do not mention me, do not include introductory phrases. "
+         f"Comments: {comments_text}"
+),
+
+    'code_difficulty': (
+            f"Analyze the following code snippet. "
+            f"Rules: "
+            f"1. Difficulty Level: Rate on a scale of 1 to 5 (1=Junior, 5=Expert). "
+            f"2. Reasoning: Provide a one-sentence explanation for this rating based on complexity and library usage. "
+            f"Respond in {user_lang}. "
+            f"Rules: Do not use markdown headers. No introductory phrases. "
+            f"Code: {post.code}"
             ),
-            
-            # 'find_best_answer': (
-            #     f"You are a data extraction engine. Identify the SINGLE most technically accurate comment that solves the user's problem. "
-            #     f"Post Question: {post.content}. Data: {comments_context}. "
-            #     f"Respond in {user_lang}. "
-            #     f"Return ONLY a JSON object: "
-            #     f"{{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
-            #     f"If no solution found, use comment_id: null."
-            # )
-            'find_best_answer': (
+    #     'find_best_answer': (
+    # f"You are an expert technical auditor. Analyze the following post and its comments. "
+    # f"Your goal is to extract the most technically accurate and helpful and best solution to the question asked in the post. "
+    # f"Rules: "
+    # f"1. Use the 'Score' provided for each main comment to gauge community consensus. "
+    # f"2. Consider content in replies as they might contain corrections or better solutions. "
+    # f"3. Cite which perspective is most valuable without saying 'Commenter X said'. "
+    # f"4. If no clear answer exists, state that 'No definitive solution was found in the discussion'. "
+    # f"Respond in {user_lang}. "
+    # f"Post Question: {post.content} "
+    # f"Comments: {comments_text}"
+    'find_best_answer': (
                 f"You are a data extraction engine. "
                 f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
-                f"The user provided a post and potentially a code snippet. Evaluate the comments based on how well they solve the problem given the context. "
-                f"Post Question: {post.content} "
-                f"Code Snippet: {getattr(post, 'code', 'No code provided')} "
-                f"Data (Comments and Replies):\n{comments_context} "
-                f"Return ONLY a JSON object: {{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
-                f"If no solution found, use comment_id: null."
-            ),
+                f"Rules:\n"
+                f"1. DO NOT summarize the discussion. DO NOT write an essay.\n"
+                f"2. Output ONLY in the following format:\n"
+                f"ID: [The ID of the best comment or reply]\n"
+                f"Content: [Copy the exact content of the comment or reply]\n"
+                f"Reasoning: [One short sentence explaining why this is the best solution]\n"
+                f"3. If there is no solution, respond with: 'No definitive solution found'.\n\n"
+                 f"Respond in {user_lang}. "
+                 f"Post Question: {post.content}"
+                f"Data (Comments and Replies):\n{comments_context}"
+            )
+   
         }
 
-        # نداء الـ API
+    
+                                                                                                                                                                                                  
+        system_instruction = (
+            "أنت مساعد تقني ذكي. "
+            "رد بأسلوب مباشر ومهني. "
+            "استخدم التنسيق فقط إذا كان الطلب يتطلب قائمة (List) أو نقاط، وإلا فاجعل الرد نصاً متصلاً. "
+            "تجنب استخدام النجوم والخطوط العريضة (Markdown formatting) التي قد تسبب مشاكل في العرض."
+                        )        
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": "You are a JSON API. Respond ONLY with valid JSON structure as requested. No extra text."},
+                {"role": "system", "content": system_instruction},
                 {"role": "user", "content": prompts.get(action, "Explain this")}
             ],
-            "temperature": 0.2
+            "temperature": 0.3
         }
         
         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
         
+        # نداء الـ Groq API
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+        
+        return Response(response.json()['choices'][0]['message']['content'])            
+
+
+
+
+class SummarizeAPIView(APIView):
+    "مو نهائي"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        content = request.data.get('content')
+        lang = request.data.get('lang', 'en')
+
+        if not content:
+            return Response(
+                {"error": "No content provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+#         system_instruction = (
+#     "You are a professional content analyzer.\n\n"
+
+#     "Task:\n"
+#     "Extract the main idea and key points from the text.\n\n"
+
+#     "STRICT FORMAT:\n"
+#     "1. First line: a ONE sentence general overview of the topic.\n"
+#     "2. Then list 3 to 5 key points.\n\n"
+
+#     "RULES:\n"
+#     "- Each point must represent a distinct idea.\n"
+#     "- Keep the SAME language as input.\n"
+#     "- Do NOT add explanations.\n"
+#     "- Do NOT write long paragraphs.\n"
+#     "- Be clear and direct.\n"
+# )
+        system_instruction = (
+    "You are a professional content analyzer.\n\n"
+
+    "Task:\n"
+    "Extract the main idea and key points from the text.\n\n"
+
+    "STRICT FORMAT (MUST FOLLOW EXACTLY):\n"
+    "الفكرة العامة:\n"
+    "[write the sentence on a NEW LINE]\n\n"
+    "أهم النقاط:\n"
+    "1. ...\n"
+    "2. ...\n"
+    "3. ...\n\n"
+
+    "RULES:\n"
+    "- use the language {lang}.\n"
+    "- Do NOT add explanations.\n"
+    "- Do NOT change the format.\n"
+    "- Do NOT add extra text before or after.\n"
+    "- Each point must represent a distinct idea.\n"
+    "- Maximum 5 points.\n"
+)
+
+        user_prompt = ( 
+            f"Analyze this content:\n\n{content}"
+            f"Respond in {lang}.\n\n"
+        )
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 300
+        }
+
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
         try:
-            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
-            ai_content = response.json()['choices'][0]['message']['content']
-            
-            # تنظيف الـ JSON
-            clean_json = ai_content.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_json)
-            return Response(data, status=200)
-            
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=20
+            )
+            result = response.json()
+
+            if 'choices' in result:
+                summary = result['choices'][0]['message']['content'].strip()
+
+                return Response({
+                    "summary": summary
+                }, status=status.HTTP_200_OK)
+
+            else:
+                return Response({
+                    "error": "Summarization failed",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response({"error": "Failed to process", "details": str(e)}, status=500)
+            return Response({
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+import json
+
+class FindBestAnswerAPIView(APIView):
+    "شبه نهائي"
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        post_id = request.data.get('post_id')
+        user_lang = request.data.get('lang', 'ar')
+
+        if not post_id:
+            return Response({"error": "post_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        post = get_object_or_404(Post, id=post_id)
+
+        # 🔥 جلب التعليقات مع السكور
+        comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
+            computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+            computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
+        ).annotate(
+            score=F('computed_useful') - F('computed_not_useful')
+        ).order_by('-score')[:5].prefetch_related('replies')
+
+        # 🔥 بناء context
+        comments_context = ""
+        for comment in comments:
+            comments_context += f"\n[ID: {comment.id} | Score: {comment.score}] {comment.content}"
+            for reply in comment.replies.all():
+                comments_context += f"\n   -> [Reply ID: {reply.id}] {reply.content}"
+
+        # 🔥 Prompt جديد يرجع JSON
+        system_instruction = (
+            "You are a data extraction engine.\n\n"
+
+            "Task:\n"
+            "Find the SINGLE best answer that solves the problem.\n\n"
+
+              "IMPORTANT RULES:\n"
+    "- The comments are already sorted by score (highest first)\n"
+    "- You MUST choose ONLY from them\n"
+    "- Prefer higher score unless clearly wrong\n\n"
+
+            "RETURN ONLY JSON:\n"
+            "{\n"
+            '  "id": number,\n'
+            '  "reason": "short explanation"\n'
+            "}\n\n"
+
+            "Rules:\n"
+            "- Do NOT explain outside JSON\n"
+            "- Pick the most accurate answer\n"
+            "- If no answer exists, return:\n"
+            '{ "id": null, "content": "No definitive solution found", "reason": "" }\n'
+        )
+
+        user_prompt = (
+            f"Respond in {user_lang}.\n\n"
+            f"Post:\n{post.content}\n\n"
+            f"Comments:\n{comments_context}"
+        )
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2,
+            "max_tokens": 300
+        }
+
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=20
+            )
+            result = response.json()
+
+            if 'choices' in result:
+                ai_text = result['choices'][0]['message']['content'].strip()
+
+                # 🔥 تحويل JSON
+                try:
+                    data = json.loads(ai_text)
+                except:
+                    data = {
+                        "id": None,
+                        "content": ai_text,
+                        "reason": "Parsing failed"
+                    }
+
+                return Response(data, status=status.HTTP_200_OK)
+
+            else:
+                return Response({
+                    "error": "AI failed",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import json
+# import requests
+# from django.conf import settings
+# from django.shortcuts import get_object_or_404
+# from django.db.models import Count, Q, F
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework.permissions import IsAuthenticated
+# from .models import Post, Comment
+
+# class AskAIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         post_id = request.data.get('post_id')
+#         action = request.data.get('action') 
+#         user_lang = request.data.get('lang', 'ar')
+#         post = get_object_or_404(Post, id=post_id)
+        
+#         # تحضير السياق للـ AI
+#         if action == 'find_best_answer':
+#             comments_context = ""
+#             top_comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
+#                 computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
+#                 computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
+#             ).annotate(score=F('computed_useful') - F('computed_not_useful')).order_by('-score')[:15].prefetch_related('replies')
+
+#             for comment in top_comments:
+#                 comments_context += f"\n[ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
+#                 for reply in comment.replies.all():
+#                     comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
+#         else:
+#             comments_context = "\n".join(Comment.objects.filter(post=post).values_list('content', flat=True))
+
+#         # القواميس (استخدمت نصوصك الأصلية مع إضافة شرط الـ JSON)
+#         prompts = {
+#             'summarize': (
+#                 f"Provide a summary of the content: {post.content}. "
+#                 f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases. "
+#                 f"Structure your response exactly as a JSON object: "
+#                 f"{{'overview': 'One-sentence General Overview of the topic', 'takeaways': ['Takeaway 1', 'Takeaway 2', 'Takeaway 3']}}"
+#             ),
+            
+#             'explain_code': (
+#                 f"Analyze the following code strictly: {post.code}. "
+#                 f"Respond in {user_lang}. "
+#                 f"Rules: 1. State the core idea in exactly one sentence. 2. Explain clearly. 3. Do NOT add suggestions/lectures. "
+#                 f"Return ONLY a JSON object: {{'core_idea': 'string', 'explanation': 'string'}}"
+#             ),
+            
+#             'analyze_comments': (
+#                 f"Analyze these comments: {comments_context}. "
+#                 f"Respond in {user_lang}. Rules: No polite filler, no intro. "
+#                 f"Structure your response exactly as a JSON object: "
+#                 f"{{'discussion_summary': 'brief narrative summary', 'most_important_points': ['point 1', 'point 2'], 'sentiment': 'one word'}}"
+#             ),
+
+#             'code_difficulty': (
+#                 f"Analyze the following code snippet: {post.code}. "
+#                 f"Respond in {user_lang}. Rules: No markdown headers, no intro. "
+#                 f"Structure your response exactly as a JSON object: "
+#                 f"{{'difficulty_level': 1_to_5_integer, 'reasoning': 'one-sentence explanation'}}"
+#             ),
+            
+#             # 'find_best_answer': (
+#             #     f"You are a data extraction engine. Identify the SINGLE most technically accurate comment that solves the user's problem. "
+#             #     f"Post Question: {post.content}. Data: {comments_context}. "
+#             #     f"Respond in {user_lang}. "
+#             #     f"Return ONLY a JSON object: "
+#             #     f"{{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
+#             #     f"If no solution found, use comment_id: null."
+#             # )
+#             'find_best_answer': (
+#                 f"You are a data extraction engine. "
+#                 f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
+#                 f"The user provided a post and potentially a code snippet. Evaluate the comments based on how well they solve the problem given the context. "
+#                 f"Post Question: {post.content} "
+#                 f"Code Snippet: {getattr(post, 'code', 'No code provided')} "
+#                 f"Data (Comments and Replies):\n{comments_context} "
+#                 f"Return ONLY a JSON object: {{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
+#                 f"If no solution found, use comment_id: null."
+#             ),
+#         }
+
+#         # نداء الـ API
+#         payload = {
+#             "model": "llama-3.1-8b-instant",
+#             "messages": [
+#                 {"role": "system", "content": "You are a JSON API. Respond ONLY with valid JSON structure as requested. No extra text."},
+#                 {"role": "user", "content": prompts.get(action, "Explain this")}
+#             ],
+#             "temperature": 0.2
+#         }
+        
+#         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+        
+#         try:
+#             response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
+#             ai_content = response.json()['choices'][0]['message']['content']
+            
+#             # تنظيف الـ JSON
+#             clean_json = ai_content.replace('```json', '').replace('```', '').strip()
+#             data = json.loads(clean_json)
+#             return Response(data, status=200)
+            
+#         except Exception as e:
+#             return Response({"error": "Failed to process", "details": str(e)}, status=500)
 
 
 

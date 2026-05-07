@@ -165,6 +165,10 @@ urlpatterns = [
     
     path('suggest-reply/', SuggestReplyView.as_view(), name='suggest-reply'),
 
+    path('summarize_content/', SummarizeAPIView.as_view(), name='summarize_content/'),
+
+    path('best-answer/', FindBestAnswerAPIView.as_view(), name='best-answer/'),
+
 ]
 
 
