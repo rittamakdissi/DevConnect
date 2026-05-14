@@ -98,7 +98,7 @@ def trigger_notification_push(sender, instance, created, **kwargs):
             body_messages = {
                   "follow": f"{instance.from_user.username} started following you",
                   "post_reaction": f"{instance.from_user.username} reacted to your post",
-                 "comment_reaction": f"{instance.from_user.username} liked your comment",
+                 "comment_reaction": f"{instance.from_user.username} reacted to your comment",
                  "new_comment": f"{instance.from_user.username} commented on your post",
                  "reply_comment": f"{instance.from_user.username} replied to your comment",
                 }

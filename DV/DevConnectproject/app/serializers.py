@@ -1003,6 +1003,8 @@ class NotificationSerializer(serializers.ModelSerializer):
             return obj.comment.id
         if obj.post:
             return obj.post.id
+        if obj.notification_type =="follow":
+            return obj.from_user.id
         return None
 
     def get_target_type(self, obj):
