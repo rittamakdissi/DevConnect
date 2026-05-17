@@ -17,7 +17,7 @@ STOP_WORDS = {
 CORE_FIELDS = {
     "frontend", "backend", "mobile", "ui", "ux", "ml", "ai",
     "devops", "data", "cloud", "security", "testing",
-    "gamedev", "blockchain", "embedded", "pm"
+    "gamedev", "blockchain", "embedded", "pm","fullstack"
 }
 
 # ⚠️ المفاهيم العامة - وزن 1
@@ -59,15 +59,21 @@ ALIASES = {
     },
     "ml": {
         "pytorch", "tensorflow", "keras", "scikit-learn", "sklearn", "numpy", "pandas",
-        "opencv", "langchain", "openai", "huggingface", "llm", "machinelearning"
+        "opencv", "langchain", "openai", "huggingface", "llm", "machinelearning","python"
+    },
+    "ai": {
+    "openai", "langchain", "llm", "huggingface", "chatgpt", "generativeai", "promptengineering"
     },
     "devops": {
         "docker", "kubernetes", "k8s", "aws", "azure", "gcp", "linux", "terraform",
         "ansible", "jenkins", "githubactions", "nginx", "apache"
     },
+    "cloud": {
+    "aws", "azure", "gcp", "heroku", "render", "vercel", "netlify", "cloudflare"
+    },
     "data": {
         "sql", "mysql", "postgresql", "postgres", "mongodb", "redis", "oracle",
-        "mssql", "cassandra", "elasticsearch", "firebase", "supabase", "spark"
+        "mssql", "cassandra", "elasticsearch", "firebase", "supabase", "spark","python"
     },
     "security": {
         "cybersecurity", "infosec", "pentesting", "hacking", "firewall", "jwt", "oauth"
@@ -76,14 +82,17 @@ ALIASES = {
         "jest", "cypress", "selenium", "mocha", "playwright", "tdd", "bdd"
     },
     "gamedev": {
-        "unity", "unreal", "c++", "cpp", "cplusplus", "godot", "shader", "opengl"
+        "unity", "unreal", "c++", "cpp", "cplusplus", "godot", "shader", "opengl","csharp","c#"
     },
     "blockchain": {
         "solidity", "web3", "ethereum", "smartcontract", "nft", "metamask", "truffle"
     },
     "embedded": {
         "arduino", "raspberry", "iot", "firmware", "esp32", "rtos", "microcontroller"
-    }
+    },
+    "pm": {
+    "productmanager", "productowner", "jira", "confluence", "notion", "roadmap", "agile", "scrum"
+}
 }
 
 
@@ -152,7 +161,6 @@ def similarity_score(words1_expanded, words2_expanded, words1_normalized, words2
     return score + (random.random() * 0.01)
 
 #  شرح الكود:
-# هلاً بكِ في جولة المراجعة النهائية! بما أننا وصلنا إلى الكود "الخارق" والشامل، دعيني أرسم لكِ الصورة الكاملة لكيفية عمله عند كل استدعاء (Refresh):
 # 1. العدد الإجمالي المقترح
 
 # النظام مبرمج ليقترح 8 مستخدمين فقط كحد أقصى في كل مرة.
@@ -196,20 +204,8 @@ def similarity_score(words1_expanded, words2_expanded, words1_normalized, words2
 import re
 from deep_translator import GoogleTranslator
 
-# def translate_text(text):
-"""هاد ابطء من يلي بعدو"""
-#     arabic_pattern = re.compile(r'[\u0600-\u06FF]')
-
-#     if arabic_pattern.search(text):
-#         # النص عربي → ترجمه للإنجليزية
-#         return GoogleTranslator(source='ar', target='en').translate(text)
-
-#     else:
-#         # النص ليس عربي → ترجمه للعربية
-#         return GoogleTranslator(source='en', target='ar').translate(text)
 
 def translate_text(text):
-    "شغال وسرعتو منيحة"
     arabic_pattern = re.compile(r'[\u0600-\u06FF]')
 
     if arabic_pattern.search(text):
@@ -222,7 +218,6 @@ def translate_text(text):
     # تقسيم النص الطويل
     max_length = 800 #اذا بدي سرع بزيد هاد 
     chunks = textwrap.wrap(text, width=max_length, break_long_words=False, replace_whitespace=False)
-    #chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
 
     translator = GoogleTranslator(source=source, target=target, timeout=20)  # ننشئه مرة واحدة
 

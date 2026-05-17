@@ -1011,6 +1011,9 @@ class NotificationSerializer(serializers.ModelSerializer):
         # تشخيص دقيق لأنواع الإشعارات (تأكدي أن المسميات تطابق ما في الموديل عندك)
         type_str = str(obj.notification_type).lower()
         
+        if type_str =="follow":
+            return "follow"
+        
         if 'comment' in type_str or 'reply' in type_str:
             return "comment"
         

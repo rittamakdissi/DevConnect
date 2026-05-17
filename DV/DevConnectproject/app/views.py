@@ -844,8 +844,18 @@ class SuggestedUsersView(APIView):
         user_words_normalized = normalize_specialization(current_user.specialization)
         user_words_expanded = expand_words(user_words_normalized)
 
+        # لو ما في تخصص واضح — رح الاقتراحات تكون عشوائية كلياً
+        if not user_words_normalized:
+            candidates_list = list(candidates)
+            random.shuffle(candidates_list)
+            final_users = candidates_list[:15]
+            serializer = UserSuggestionSerializer(...)
+            return Response(serializer.data, status=200)
+
         # جلب المرشحين (استثناء النفس ومن أتابعهم)
-        following_ids = Follow.objects.filter(follower=current_user).values_list("following_id", flat=True)
+        following_ids = set(
+            Follow.objects.filter(follower=current_user)
+            .values_list("following_id", flat=True))
         candidates = User.objects.exclude(id=current_user.id)\
         .exclude(id__in=following_ids)\
         .exclude(specialization__isnull=True)\
@@ -873,28 +883,39 @@ class SuggestedUsersView(APIView):
         scored_users.sort(key=lambda x: x[0], reverse=True)
 
         # ب. سحب أول 8 أشخاص (النظام يعطي الأولوية المطلقة للمجال)
-        final_users = [u for _, u in scored_users[:8]]
+        #final_users = [u for _, u in scored_users[:8]]
 
         # ج. إذا كان مجالك فيه أقل من 8، نكمل الباقي من الغرباء عشوائياً (Shuffle)
-        if len(final_users) < 8:
-            remaining_from_scored = [u for _, u in scored_users[8:]]
-            fallback_pool = remaining_from_scored + zero_score_users
-            random.shuffle(fallback_pool)
+        # if len(final_users) < 8:
+        #     remaining_from_scored = [u for _, u in scored_users[8:]]
+        #     fallback_pool = remaining_from_scored + zero_score_users
+        #     random.shuffle(fallback_pool)
             
-            needed = 8 - len(final_users)
-            final_users.extend(fallback_pool[:needed])
-        following_ids_set = set(
-            Follow.objects.filter(follower=request.user)
-           .values_list('following_id', flat=True)
-)
-        # د. إرسال النتائج النهائية
-        #serializer = UserSuggestionSerializer(final_users, many=True, context={"request": request})
+        #     needed = 8 - len(final_users)
+        #     final_users.extend(fallback_pool[:needed])
+
+
+        # أول 5 — نفس المجال (score عالي)
+        high_match = [u for _, u in scored_users if _ >= 5][:5]
+
+        # ثاني 5 — مجالات مشابهة (score متوسط)
+        mid_match = [u for _, u in scored_users if 1 <= _ < 5][:5]
+
+        # آخر 5 — مجالات مختلفة (fallback)
+        random.shuffle(zero_score_users)
+        low_match = zero_score_users[:5]
+        #بس يصير عنا مستخدمين كتير برجع هالسطرين
+        # random.shuffle(high_match)
+        # random.shuffle(mid_match)
+
+        final_users = high_match + mid_match + low_match
+
         serializer = UserSuggestionSerializer(
            final_users,
            many=True,
            context={
         "request": request,
-        "following_ids": following_ids_set,
+        "following_ids": following_ids,
     }
 )
         return Response(serializer.data, status=200)
@@ -2119,7 +2140,7 @@ class GeneratePostAPIView(APIView):
                         """            }
             ],
             "temperature": 0.35,  #  خففناه ليصير أضبط بالعربي
-            "max_tokens": 300
+            "max_tokens": 500
         }
 
         try:
