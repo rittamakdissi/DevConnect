@@ -1000,6 +1000,7 @@ class SearchView(APIView):
         #search bar & click on post
         # =====================
         if search_type == "tags": # برجع البوستات التي تحتوي التاغ المطلوب
+            query = query.replace(" ", "_")
             posts = Post.objects.filter(
               tags__icontains=query
             ).select_related(
@@ -1335,7 +1336,8 @@ class SearchSuggestionsView(APIView):
         # 📝TAGS       
        # هاد و يلي بعدو عم يعطو نفس النتيجة بس رح خليون لنشوف كيف الشكل يلي رح يرجعولنا ياه الفرونت لحتى نخزن التاغات بقاعدة البيانات  
         if search_type == "tags":                                  #  وبقلبا التاغاتlist هاد للشكل يلي مخزن 
-          query_lower = query.lower()                                        # هيك شكل التاغات المخزنة هون
+          query_lower = query.lower()   
+          query_lower = query.replace(" ", "_")                                     # هيك شكل التاغات المخزنة هون
           # هون منخلي قاعدة البيانات تحسب كم مرة تكرر كل تاغ               # tags = ["django", "backend"]
           all_tags = Post.objects.filter(tags__icontains=query_lower)\
                            .values_list('tags', flat=True)
@@ -1699,6 +1701,10 @@ class SuggestTagsView(APIView):
             "STRICT RULES:\n"
             "1. Return ONLY tags separated by commas.\n"
             "2. NO explanations, NO sentences.\n"
+             "  . NO translations.\n"
+            "6. NEVER say things like 'Here are the tags'.\n"
+            "7. NEVER explain the language.\n"
+            "8. NEVER respond with full sentences.\n"
             "3. NO generic tags like 'technology', 'software', 'system'.\n"
             "4. Focus on:\n"
             "   - Programming languages (Python, Java, etc.)\n"
@@ -1706,6 +1712,9 @@ class SuggestTagsView(APIView):
             "   - Concepts (AI, Machine Learning, APIs, etc.)\n"
             "5. Maximum 7 tags.\n"
             "6. Output MUST be in English ONLY.\n"
+            "7. Avoid single-word tags that are too broad (e.g., 'code', 'project').\n"
+            "8. if the extracted tag is two words, connect them with an underscore (e.g., 'machine_learning' instead of 'machine learning').\n"
+           # "8. if the extracted tag is two words,connect them  together without space (e.g., 'machinelearning' instead of 'machine learning').\n"
         )
 
         payload = {
@@ -1714,7 +1723,7 @@ class SuggestTagsView(APIView):
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Extract the most important tags from this text:\n\n{content}"}
             ],
-            "temperature": 0.3 
+            "temperature": 0.1
         }
 
         headers = {
@@ -1822,7 +1831,7 @@ class ExplainCodeAPIView(APIView):
 
     def post(self, request):
         user_code = request.data.get("code_content")
-        user_lang = request.data.get("language", "en")  
+        user_lang = request.data.get("language", "ar")  
 
         if not user_code:
             return Response(
@@ -1845,7 +1854,7 @@ class ExplainCodeAPIView(APIView):
                 "- ركّز على كيف الكود يشتغل فعلياً.\n"
                 "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي.\n"
                 "- خليك مختصر ودقيق.\n"
-                "- لا تكتب أي لغة غير العربية.\n"
+                "- لا تكتب أي لغة غير العربية والإنجليزية للمصطلحات التقنية فقط.\n"
             )
 
             user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
@@ -1853,14 +1862,13 @@ class ExplainCodeAPIView(APIView):
         else:
             system_instruction = (
                 "You are a Senior Backend Developer explaining code to another developer.\n\n"
-
                 "RULES:\n"
-                "1. Start with: Main Idea: [clear function of the code]\n"
-                "2. Then explain the logic in ONE paragraph only.\n"
-                "3. No bullet points, no lists.\n"
-                "4. No generic phrases.\n"
-                "5. Be concise and technical.\n"
-                "6. Focus on how the code works internally.\n"
+                "- Start with one short sentence summarizing what the code does.\n"
+                "- Then explain the logic in ONE paragraph only.\n"
+                "- No bullet points, no lists, no headers.\n"
+                "- No generic phrases.\n"
+                "- Be concise and technical.\n"
+                "- Focus on how the code works internally.\n"
             )
 
             user_prompt = f"Explain this code:\n\n{user_code}"
@@ -1916,6 +1924,115 @@ class ExplainCodeAPIView(APIView):
                 "error": "Connection error",
                 "details": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class ExplainCodeLineByLineAPIView(APIView):
+    """شرح الكود سطر بسطر"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_code = request.data.get("code_content")
+        user_lang = request.data.get("language", "ar")
+
+        if not user_code:
+            return Response(
+                {"error": "No code content provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user_lang == 'ar':
+            system_instruction = (
+                "أنت Senior Backend Developer  بتشرح كود لمبرمج مبتدئ.\n\n"
+                "RULES:\n"
+                "- قسّم الكود لـ sections منطقية (مثلاً: الـ fields، الـ validation، الـ save).\n"
+                "- لكل section:\n"
+                "  1. حط الكود.\n"
+                "  2. اكتب 2-3 جمل: شو بيعمل ولیش موجودة بهالكود .\n"
+                "- ربط الـ sections ببعض: قول كيف كل section بتوصل للي بعدها.\n"
+                "- اختم بجملة وحدة تلخص الـ flow من البداية للنهاية.\n"
+                "- لا تستخدم bullet points جوا الشرح.\n"
+                "- لا تشرح الواضح (مثلاً لا تقول 'هاد تعريف كلاس').\n"
+                "- لا تكرري نفس المعلومة أكثر من مرة داخل نفس الـ section.\n"
+                "- لا تستخدمي جمل انتقال بين الـ sections مثل 'الآن ننتقل إلى'.\n"
+                "- لا تكتبي ملخص في النهاية، الـ overall flow جملة وحدة كافية.\n"
+                "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي.\n"
+                "- ممنوع استخدام أي حرف ياباني أو صيني أو أي لغة غير العربية والإنجليزية.\n"
+                "- خليك تقني وواضح.\n"
+                
+)
+            user_prompt = f"اشرح الكود التالي سطر بسطر:\n\n{user_code}"
+        else:
+            system_instruction = (
+                "You are a Senior Backend Developer explaining code to a junior developer.\n\n"
+                "RULES:\n"
+                "- Split the code into logical sections (e.g., fields, validation, save logic).\n"
+                "- For each section:\n"
+                "  1. Show the code block.\n"
+                "  2. Write 2-3 sentences: what it does AND why it exists in this context.\n"
+                "- Connect sections: briefly mention how each section feeds into the next.\n"
+                "- End with one sentence: the overall flow from input to output.\n"
+                "- No bullet points inside explanations.\n"
+                "- No restating the obvious (e.g. don't say 'this is a class definition').\n"
+                "- Do NOT add connector sentences between sections, the headers make the flow clear.\n"
+                "- Be technical but readable.\n"
+            )
+            user_prompt = f"Explain this code line by line:\n\n{user_code}"
+
+        url = "https://api.groq.com/openai/v1/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2,  
+            "max_tokens": 800    
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            result = response.json()
+
+            if 'choices' in result and result['choices']:
+                explanation = result['choices'][0]['message']['content'].strip()
+
+                explanation = re.sub(r'[\u3000-\u9FFF\uAC00-\uD7AF]', '', explanation)
+
+                # توحيد المصطلحات
+                explanation = explanation.replace("شفرة برمجية", "كود")
+                explanation = explanation.replace("الشفرة", "الكود")
+                explanation = explanation.replace("شفرة", "كود")
+                explanation = explanation.replace("الفئة", "الكلاس")
+                explanation = explanation.replace("فئة", "كلاس")
+
+                if not explanation:
+                    explanation = "No explanation generated"
+
+                return Response(
+                    {"explanation": explanation},
+                    status=status.HTTP_200_OK
+                )
+
+            else:
+                return Response({
+                    "error": "Failed to get response from AI",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 # هاد الكود بيشرح بالعربي فقط 
 # class ExplainCodeAPIView(APIView):
@@ -2139,7 +2256,7 @@ class GeneratePostAPIView(APIView):
                         {user_content}
                         """            }
             ],
-            "temperature": 0.35,  #  خففناه ليصير أضبط بالعربي
+            "temperature": 0.35,   
             "max_tokens": 500
         }
 
@@ -2284,49 +2401,53 @@ class ClassifyPostAPIView(APIView):
             "[question, project, information, article]\n\n"
 
             "DEFINITIONS:\n"
-            "- question: asking something (how, why, what, هل, كيف)\n"
+            "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
             " project: user built, created, developed, finished, or worked on something "
             "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
-             "even if the sentence also includes explanation or opinion\n"            "- information: short factual or simple statement\n"
+            "even if the sentence also includes explanation or opinion\n"        
+            "- information: short factual or simple statement or declarative statement\n"
             "- article: long, analytical, or opinion-based content\n\n"
+            "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
 
             "STRICT RULES:\n"
             "- Output ONLY one word\n"
             "- No punctuation\n"
             "- No explanation\n"
             "- No extra text\n"
+            
         )
-#         system_instruction = (
-#     "You are a highly accurate classifier for tech content.\n\n"
+        # system_instruction = (
+        #     "You are a highly accurate classifier for tech content.\n\n"
 
-#     "Classify the input into EXACTLY ONE of these categories:\n"
-#     "[question, project, information, article]\n\n"
+        #     "Classify the input into EXACTLY ONE of these categories:\n"
+        #     "[question, project, information, article]\n\n"
 
-#     "DEFINITIONS:\n"
+        #     "DEFINITIONS:\n"
 
-#     "- question: asking something (how, why, what, هل, كيف) OR any indirect question or doubt.\n"
+        #     "- question: asking something (how, why, what, هل, كيف) OR any indirect question or doubt.\n"
 
-#     "- project: if the user mentions building, creating, developing, finishing, or working on something "
-#     "(e.g., 'I built', 'I created', 'I finished', 'I worked on', 'اشتغلت على', 'سويت', 'بنيت', 'طورت'), "
-#     "EVEN if it includes explanation or opinion.\n"
+        #     "- project: if the user mentions building, creating, developing, finishing, or working on something "
+        #     "(e.g., 'I built', 'I created', 'I finished', 'I worked on', 'اشتغلت على', 'سويت', 'بنيت', 'طورت'), "
+        #     "EVEN if it includes explanation or opinion.\n"
 
-#     "- information: ONLY short, direct factual statements with NO personal opinion, NO experience, NO story.\n"
+        #     #"- information: ONLY short, direct factual statements with NO personal opinion, NO experience, NO story.\n"
+        #    "- information: direct fact that anyone would agree with, no personal take, no advice.\n"
 
-#     "- article: any content that includes opinion, explanation, reflection, or trends, "
-#     "especially if it does NOT describe building something.\n\n"
+        #     "- article: any content that includes opinion, explanation, reflection, or trends, "
+        #     "especially if it does NOT describe building something.\n\n"
 
-#     "STRICT RULES:\n"
-#     "- If user built or worked on something → project\n"
-#     "- If there is ANY question → question\n"
-#     "- Use 'information' ONLY for pure facts\n"
-#     "- Otherwise → article\n\n"
+        #     "STRICT RULES:\n"
+        #         "- If user built or worked on something → project\n"
+        #         "- If there is ANY question → question\n"
+        #         "- If it's a short direct fact with no opinion → information\n"  # ← قدميها قبل article
+        #         "- If it includes opinion, reflection, or analysis → article\n"
+        #         "- If still unclear → information\n"
 
-#     "OUTPUT RULES:\n"
-#     "- Output ONLY one word\n"
-#     "- No punctuation\n"
-#     "- No explanation\n"
-#     "- Lowercase only"
-# )  
+        #     "OUTPUT RULES:\n"
+        #     "- Output ONLY one word\n"
+        #     "- No punctuation\n"
+        #     "- No explanation\n"
+        #     )  
         url = "https://api.groq.com/openai/v1/chat/completions"
 
         headers = {
@@ -2539,18 +2660,18 @@ class SummarizeAPIView(APIView):
             "● [add more if needed]\n\n"
             "RULES:\n"
             "- First line: ONE sentence that truly represents the post and  explain its idea — make it meaningful and natural,must feel like a human wrote it, not a machine.\n"
-            "- Each point: maximum 25 words.\n"
             "- Each point: 1 to 2 natural sentences that explain the idea clearly.\n"
             "- Write in a conversational tone — avoid stiff or mechanical language.\n"
             "- Add as many points as the content requires.\n"
             "- NO headers, NO labels, NO extra text.\n"
-            "- CRITICAL: You MUST write your response in {lang} language ONLY, regardless of the input language.\n"
-            "- If {lang} is Arabic: write complete sentences, use natural flowing Arabic. each point must be 2 sentences maximum, explain the idea and why it matters.\n"
-            "- If {lang} is English: write complete sentences, minimum 10 words per point.\n"
-            "- Do NOT match the language of the input text — follow {lang} strictly.\n"
+            # "- CRITICAL: You MUST write your response in {lang} language ONLY, regardless of the input language.\n"
+            # "- If {lang} is Arabic: write complete sentences, use natural flowing Arabic. each point must be 2 sentences maximum, explain the idea and why it matters.\n"
+            # "- If {lang} is English: write complete sentences, minimum 10 words per point.\n"
+            "- CRITICAL: Detect the language of the input and respond in the SAME language.\n"
+            "- If  Arabic: write complete sentences, use natural flowing Arabic. each point must be 2 sentences maximum,\n"
+             "- If  English: write complete sentences, maximum 25 words per point.\n"
             "- Do NOT add anything before or after.\n"
         )
-        system_instruction = system_instruction.replace("{lang}", lang)
 
         user_prompt = (
               f"Summarize this:\n\n{content}"
@@ -2611,7 +2732,6 @@ class FindBestAnswerAPIView(APIView):
 
     def post(self, request):
         post_id = request.data.get('post_id')
-        user_lang = request.data.get('lang', 'ar')
 
         if not post_id:
             return Response({"error": "post_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2649,7 +2769,7 @@ class FindBestAnswerAPIView(APIView):
             "RETURN ONLY JSON:\n"
             "{\n"
             '  "id": number,\n'
-            '  "reason": "short explanation"\n'
+            '  "reason": "explain why this is the best answer"\n'
             "}\n\n"
 
             "Rules:\n"
@@ -2657,6 +2777,9 @@ class FindBestAnswerAPIView(APIView):
             "- Pick the most accurate answer\n"
             "- If no answer exists, return:\n"
             '{ "id": null, "message": "No definitive solution found"}\n'
+            "- Detect the language of the post content , and write the reason in that same language.\n"
+            "- Forbidden:  DO NOT USE ANY Vietnamese, Chinese, Japanese, Korean, or any non-Arabic/English characters.\n"
+
         )
         post_context = f"Post:\n{post.content}\n"
 
@@ -2665,7 +2788,6 @@ class FindBestAnswerAPIView(APIView):
             post_context += f"\nCode ({post.code_language or 'unknown'}):\n{post.code}\n"
 
         user_prompt = (
-            f"Respond in {user_lang}.\n\n"
             f"{post_context}\n"
             #f"Post:\n{post.content}\n\n"
             f"Comments:\n{comments_context}"
@@ -2698,6 +2820,16 @@ class FindBestAnswerAPIView(APIView):
             if 'choices' in result:
                 ai_text = result['choices'][0]['message']['content'].strip()
 
+              # حذف الكلمات التي تحتوي محارف غير عربية/إنجليزية
+                ai_text = re.sub(
+                    r'\b\S*[^؀-ۿA-Za-z0-9\s{}[\]":,._\-]\S*\b',
+                    '',
+                    ai_text
+                )
+
+                # تنظيف الفراغات
+                ai_text = re.sub(r'\s{2,}', ' ', ai_text).strip()
+
                 #  تحويل JSON
                 try:
                     ai_text = ai_text.strip().replace("`json", "").replace("```", "").strip()
@@ -2709,13 +2841,15 @@ class FindBestAnswerAPIView(APIView):
                             data["reason"] = "No best answer found yet"
                     if not data.get("id"):
                           data["message"] = "No best answer found yet 🤔"
-                except:
-                    data = {
-                        "id": None,
-                        "reason": "Parsing failed",
-                        "message": "No best answer found for this post yet 🤔"
-                    }
-
+                # except:
+                #     data = {
+                #         "id": None,
+                #         "reason": "Parsing failed",
+                #         "message": "No best answer found for this post yet 🤔"
+                #     }
+                except (json.JSONDecodeError, KeyError) as e:
+                    data = {"id": None, "reason": "Parsing failed", 
+                            "message": "No best answer found yet"}
                 return Response(data, status=status.HTTP_200_OK)
 
             else:

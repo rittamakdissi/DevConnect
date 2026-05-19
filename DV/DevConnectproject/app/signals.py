@@ -109,11 +109,23 @@ def trigger_notification_push(sender, instance, created, **kwargs):
             title = "DevConnect"
 
             # تحديد الـ target_id بذكاء
-            target_id = str(instance.post.id if instance.post else (instance.comment.id if instance.comment else ""))
+            #target_id = str(instance.post.id if instance.post else (instance.comment.id if instance.comment else ""))
+            if instance.notification_type == "follow":
+                  target_id = str(instance.from_user.id)
+            elif instance.post:
+              target_id = str(instance.post.id)
+            elif instance.comment:
+                target_id = str(instance.comment.id)
+            else:
+                    target_id = ""
 
+            # data_payload = {
+            #     "target_id": target_id,
+            #     "target_type": str(instance.notification_type),
+            # }
             data_payload = {
                 "target_id": target_id,
-                "target_type": str(instance.notification_type),
+                "target_type": "follow" if instance.notification_type == "follow" else str(instance.notification_type),
             }
 
             # الإرسال الفعلي

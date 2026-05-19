@@ -150,6 +150,8 @@ urlpatterns = [
     #شرح الكود بالذكاء
     path('explain-code/',ExplainCodeAPIView.as_view(), name='explain-api'),
 
+    path('explain/line-by-line/', ExplainCodeLineByLineAPIView.as_view(), name='explain-line-by-line'),
+
     #توليد منشور بالذكاء
     path('generate-post/',GeneratePostAPIView.as_view(), name='generate-api'),
 
