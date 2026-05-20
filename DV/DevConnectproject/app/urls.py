@@ -113,6 +113,9 @@ urlpatterns = [
 
     #اقتراحات الاشخاص مباشرة اثناء الكتابةو بدو كويري
     path("search/suggestions/",SearchSuggestionsView.as_view()),
+  
+    # ترجمة بشكل عام
+    path("translate/", TranslateTextView.as_view()),
 
     #ترجمة المنشور
     path("translate-post/", TranslatePostView.as_view(), name="translate-post"),

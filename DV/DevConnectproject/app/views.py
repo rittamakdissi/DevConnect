@@ -1508,7 +1508,23 @@ class ShowOriginalCommentView(APIView):
         return Response({
             "content": comment.content
         })
+
+
+#الترجمة 
+class TranslateTextView(APIView):
+    permission_classes = [IsAuthenticated]
     
+    def post(self, request):
+        text = request.data.get("content")
+        
+        if not text:
+            return Response({"error": "text is required"}, status=400)
+        
+        return Response({
+            "translated": translate_text(text)
+        })
+
+
 #############################################################################   
 # لجلب عدد الإشعارات غير المقروءة للمستخدم مشان شغلة تطلع النقطة الحمرا للمستخدم انو عندو اشعار جديد 
 """
