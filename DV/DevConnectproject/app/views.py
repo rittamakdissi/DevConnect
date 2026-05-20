@@ -2812,7 +2812,7 @@ class FindBestAnswerAPIView(APIView):
             "- Do NOT explain outside JSON\n"
             "- Pick the most accurate answer\n"
             "- If no answer exists, return:\n"
-            '{ "id": null, "message": "No definitive solution found"}\n'
+            '{ "id": null, "reason": "No definitive solution found"}\n'
             "- Detect the language of the post content , and write the reason in that same language.\n"
             "- Forbidden:  DO NOT USE ANY Vietnamese, Chinese, Japanese, Korean, or any non-Arabic/English characters.\n"
 
@@ -2876,7 +2876,7 @@ class FindBestAnswerAPIView(APIView):
                             data["id"] = None
                             data["reason"] = "No best answer found yet"
                     if not data.get("id"):
-                          data["message"] = "No best answer found yet 🤔"
+                          data["reason"] = "No best answer found yet 🤔"
                 # except:
                 #     data = {
                 #         "id": None,
@@ -2885,7 +2885,7 @@ class FindBestAnswerAPIView(APIView):
                 #     }
                 except (json.JSONDecodeError, KeyError) as e:
                     data = {"id": None, "reason": "Parsing failed", 
-                            "message": "No best answer found yet"}
+                            "reason": "No best answer found yet"}
                 return Response(data, status=status.HTTP_200_OK)
 
             else:
