@@ -1958,26 +1958,45 @@ class ExplainCodeLineByLineAPIView(APIView):
             )
 
         if user_lang == 'ar':
-            system_instruction = (
-                "أنت Senior Backend Developer  بتشرح كود لمبرمج مبتدئ.\n\n"
-                "RULES:\n"
-                "- قسّم الكود لـ sections منطقية (مثلاً: الـ fields، الـ validation، الـ save).\n"
-                "- لكل section:\n"
-                "  1. حط الكود.\n"
-                "  2. اكتب 2-3 جمل: شو بيعمل ولیش موجودة بهالكود .\n"
-                "- ربط الـ sections ببعض: قول كيف كل section بتوصل للي بعدها.\n"
-                "- اختم بجملة وحدة تلخص الـ flow من البداية للنهاية.\n"
-                "- لا تستخدم bullet points جوا الشرح.\n"
-                "- لا تشرح الواضح (مثلاً لا تقول 'هاد تعريف كلاس').\n"
-                "- لا تكرري نفس المعلومة أكثر من مرة داخل نفس الـ section.\n"
-                "- لا تستخدمي جمل انتقال بين الـ sections مثل 'الآن ننتقل إلى'.\n"
-                "- لا تكتبي ملخص في النهاية، الـ overall flow جملة وحدة كافية.\n"
-                "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي.\n"
-                "- ممنوع استخدام أي حرف ياباني أو صيني أو أي لغة غير العربية والإنجليزية.\n"
-                "- خليك تقني وواضح.\n"
+#             system_instruction = (
+#                 "أنت Senior Backend Developer  بتشرح كود لمبرمج مبتدئ.\n\n"
+#                 "RULES:\n"
+#                 "- قسّم الكود لـ sections منطقية (مثلاً:  fields،  validation،  save).\n"
+#                 "- لكل section:\n"
+#                 "  1. حط الكود.\n"
+#                 "  2. اكتب 2-3 جمل: شو بيعمل ولیش موجودة بهالكود .\n"
+#                 "- ربط الـ sections ببعض: قول كيف كل section بتوصل للي بعدها.\n"
+#                 "- اختم بجملة وحدة تلخص الـ flow من البداية للنهاية.\n"
+#                 "- لا تستخدم bullet points جوا الشرح.\n"
+#                 "- لا تشرح الواضح (مثلاً لا تقول 'هاد تعريف كلاس').\n"
+#                 "- لا تكرري نفس المعلومة أكثر من مرة داخل نفس الـ section.\n"
+#                 "- لا تستخدمي جمل انتقال بين الـ sections مثل 'الآن ننتقل إلى'.\n"
+#                 "- لا تكتبي ملخص في النهاية، الـ overall flow جملة وحدة كافية.\n"
+#                 "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي.\n"
+#                 "- ممنوع استخدام أي حرف ياباني أو صيني أو أي لغة غير العربية والإنجليزية.\n"
+#                 "- خليك تقني وواضح.\n"
                 
-)
-            user_prompt = f"اشرح الكود التالي سطر بسطر:\n\n{user_code}"
+# )
+ #           user_prompt = f"اشرح الكود التالي سطر بسطر:\n\n{user_code}"
+             system_instruction = (
+                "أنت Senior Backend Developer تشرح الكود لمبرمج مبتدئ.\n\n"
+
+                "RULES:\n"
+                "- قسّم الكود إلى sections منطقية (مثل: fields، validation، save logic).\n"
+                "- لكل section:\n"
+                "  1. اعرض الكود الخاص بهذا الجزء.\n"
+                "  2. اكتب 2-3 جمل تشرح ماذا يفعل هذا الجزء ولماذا هو موجود.\n"
+                 "- اربط الـ sections ببعض بشكل طبيعي ووضح كيف ينتقل الـ flow بينها.\n"
+                 "- اختم بجملة واحدة تلخص الـ overall flow من البداية للنهاية.\n"
+                "- لا تستخدم bullet points داخل الشرح.\n"
+                "- لا تشرح الأمور الواضحة جداً.\n"
+                "- لا تكرر نفس الفكرة داخل نفس الـ section.\n"
+                "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي.\n"
+                "- ممنوع استخدام أي أحرف غير العربية والإنجليزية.\n"
+                "- اجعل الشرح تقني لكن واضح وسهل القراءة.\n")
+
+             user_prompt = f"Explain this code step by step:\n\n{user_code}"
+
         else:
             system_instruction = (
                 "You are a Senior Backend Developer explaining code to a junior developer.\n\n"
@@ -1993,7 +2012,7 @@ class ExplainCodeLineByLineAPIView(APIView):
                 "- Do NOT add connector sentences between sections, the headers make the flow clear.\n"
                 "- Be technical but readable.\n"
             )
-            user_prompt = f"Explain this code line by line:\n\n{user_code}"
+            user_prompt = f"Explain this code step by step:\n\n{user_code}"
 
         url = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -2009,7 +2028,7 @@ class ExplainCodeLineByLineAPIView(APIView):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.2,  
-            "max_tokens": 800    
+            "max_tokens": 1500    
         }
 
         try:
@@ -2700,7 +2719,7 @@ class SummarizeAPIView(APIView):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.3,
-            "max_tokens": 300
+            "max_tokens": 500
         }
 
         headers = {
