@@ -2326,6 +2326,96 @@ class GeneratePostAPIView(APIView):
             )      
 
 ##################################################################################################
+# class ImprovePostAPIView(APIView):
+#     "نهائي"
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         user_text = request.data.get("content")
+
+#         if not user_text:
+#             return Response({"error": "No text provided to improve"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         system_instruction = (
+#             "You are a professional multilingual editor. "
+#             "Your task is to improve the user's text while keeping the exact meaning.\n\n"
+#             #"- Use strong, professional wording instead of basic or vague phrases.\n"
+
+#             "LANGUAGE RULES:\n"
+#             "- Detect the input language automatically.\n"
+#             "- If the input is English → respond in English ONLY.\n"
+#             "- If the input is Arabic → respond in Arabic ONLY.\n"
+#             "- NEVER translate.\n\n"
+
+#             "ARABIC RULES:\n"
+#             "- Rewrite in clean, natural, human Arabic.\n"
+#             "- Avoid formal or academic language.\n"
+#             "- Make it smooth and easy to read.\n\n"
+#             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+#             "- Do NOT translate or transliterate technical terms into Arabic.\n"
+
+
+#             "GENERAL RULES:\n"
+#             "- Fix grammar, clarity, and flow.\n"
+#             "- Do NOT change the meaning.\n"
+#             "- Do NOT add extra information.\n"
+#             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+#             "- Do NOT translate or transliterate technical terms into Arabic.\n"
+#             "- Do NOT add hashtags or explanations.\n"
+#             "- Do NOT generate strange characters or corrupted symbols.\n"
+#             "- If the text has typos, fix them.\n"
+#             "- Do NOT explain your reasoning."
+#             " Do NOT output any thinking process."
+#                 )
+        
+#         url = "https://api.groq.com/openai/v1/chat/completions"
+        
+#         headers = {
+#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+        
+#         payload = {
+#             #"model": "gemma2-9b-it",
+#             "model": "llama-3.3-70b-versatile",
+#             #"model": "qwen/qwen3-32b",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": f"""
+#                     Detect the language of this text.
+#                     IMPORTANT:
+#                         - If it's English → respond in English ONLY.
+#                         - If it's Arabic → respond in Arabic ONLY.
+#                         - Do NOT translate.
+#                          Rewrite it professionally:{user_text}"""   }
+#             ],
+#             "temperature": 0.2 ,
+#              "max_tokens": 300
+#         }
+#         try:
+#           response = requests.post(url, json=payload, headers=headers, timeout=20)
+#           result = response.json()
+#           if 'choices' in result:
+#                 improved_text = result['choices'][0]['message']['content'].strip()
+#         # تنظيف النص من المحارف الغريبة
+#                 improved_text = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', improved_text)                
+#                 return Response({
+#                     "improved_text": improved_text,
+#                      }, status=status.HTTP_200_OK)
+
+#           else:
+#                return Response({
+#                 "error": "AI Improvement failed",
+#                  "details": result
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({
+#         "error": "Connection error",
+#         "details": str(e)
+#     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class ImprovePostAPIView(APIView):
     "نهائي"
     permission_classes = [IsAuthenticated]
@@ -2338,34 +2428,45 @@ class ImprovePostAPIView(APIView):
 
         system_instruction = (
             "You are a professional multilingual editor. "
-            "Your task is to improve the user's text while keeping the exact meaning.\n\n"
-            #"- Use strong, professional wording instead of basic or vague phrases.\n"
+            "Your task is to professionally rewrite the user's text to make it clearer, smoother, and more engaging while fully preserving the original meaning."            #"- Use strong, professional wording instead of basic or vague phrases.\n"
 
             "LANGUAGE RULES:\n"
             "- Detect the input language automatically.\n"
             "- If the input is English → respond in English ONLY.\n"
             "- If the input is Arabic → respond in Arabic ONLY.\n"
             "- NEVER translate.\n\n"
+            "- Output ONLY the rewritten text.\n"
+            "- Never say things like 'Here is the rewritten version'.\n"
+            "- Never mention the detected language.\n"
 
             "ARABIC RULES:\n"
             "- Rewrite in clean, natural, human Arabic.\n"
             "- Avoid formal or academic language.\n"
             "- Make it smooth and easy to read.\n\n"
-            "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Make the writing feel natural and expressive.\n"
+            "- Use smoother and more engaging wording when appropriate.\n"
+            "-  enhance the style while preserving the original meaning.\n"
+            "- Keep the text realistic and human, not dramatic.\n"
+            "- Keep technical terms in English \n"
             "- Do NOT translate or transliterate technical terms into Arabic.\n"
-
+           
 
             "GENERAL RULES:\n"
             "- Fix grammar, clarity, and flow.\n"
             "- Do NOT change the meaning.\n"
             "- Do NOT add extra information.\n"
-            "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+           # "- Keep technical terms in English (e.g. API, database,..etc).\n"
             "- Do NOT translate or transliterate technical terms into Arabic.\n"
             "- Do NOT add hashtags or explanations.\n"
             "- Do NOT generate strange characters or corrupted symbols.\n"
             "- If the text has typos, fix them.\n"
             "- Do NOT explain your reasoning."
             " Do NOT output any thinking process."
+            "- Improve wording and sentence flow naturally.\n"
+            "- Keep the tone modern and human.\n"
+            "- Keep the original intent and personality of the user.\n"
+            "- Do NOT exaggerate or become overly dramatic.\n"
+            "- Do NOT turn the text into marketing language.\n"
                 )
         
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -2378,19 +2479,12 @@ class ImprovePostAPIView(APIView):
         payload = {
             #"model": "gemma2-9b-it",
             "model": "llama-3.3-70b-versatile",
-            #"model": "qwen/qwen3-32b",
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"""
-                    Detect the language of this text.
-                    IMPORTANT:
-                        - If it's English → respond in English ONLY.
-                        - If it's Arabic → respond in Arabic ONLY.
-                        - Do NOT translate.
-                         Rewrite it professionally:{user_text}"""   }
+                {"role": "user", "content": f"Rewrite this professionally:\n\n{user_text}"}
             ],
-            "temperature": 0.2 ,
-             "max_tokens": 300
+            "temperature": 0.35,
+            "max_tokens": 500
         }
         try:
           response = requests.post(url, json=payload, headers=headers, timeout=20)
@@ -2414,6 +2508,7 @@ class ImprovePostAPIView(APIView):
         "error": "Connection error",
         "details": str(e)
     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 
