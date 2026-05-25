@@ -27,6 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-is(a*q4nlqru$f_#20(+^8w%o#bxfxl4h=+*)!74fjtbe^ab3c'
 
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 #DEBUG = True
@@ -261,6 +262,9 @@ STORAGES = {
 
 
 GROQ_API_KEY = config('GROQ_API_KEY')
+HUGGINGFACE_API_KEY = config('HUGGINGFACE_API_KEY')
+
+
 
 # إعدادات إضافية لتحسين استقرار الاتصال
 import socket

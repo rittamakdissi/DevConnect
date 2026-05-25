@@ -2514,127 +2514,218 @@ class ImprovePostAPIView(APIView):
 
 ########################################################################
   
-class ClassifyPostAPIView(APIView):
-    "نهائي"
-    permission_classes = [IsAuthenticated]
+# class ClassifyPostAPIView(APIView):
+#     "نهائي"
+#     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        user_content = request.data.get("content")
-        user_lang = request.data.get("language", "en")
+#     def post(self, request):
+#         user_content = request.data.get("content")
+#         user_lang = request.data.get("language", "en")
 
-        if not user_content:
-            return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
+#         if not user_content:
+#             return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        system_instruction = (
-            "You are a highly accurate classifier for tech content.\n\n"
+#         system_instruction = (
+#             "You are a highly accurate classifier for tech content.\n\n"
 
-            "Classify the input into EXACTLY ONE of these categories:\n"
-            "[question, project, information, article]\n\n"
+#             "Classify the input into EXACTLY ONE of these categories:\n"
+#             "[question, project, information, article]\n\n"
 
-            "DEFINITIONS:\n"
-            "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
-            " project: user built, created, developed, finished, or worked on something "
-            "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
-            "even if the sentence also includes explanation or opinion\n"        
-            "- information: short factual or simple statement or declarative statement\n"
-            "- article: long, analytical, or opinion-based content\n\n"
-            "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
+#             "DEFINITIONS:\n"
+#             "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
+#             " project: user built, created, developed, finished, or worked on something "
+#             "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
+#             "even if the sentence also includes explanation or opinion\n"        
+#             "- information: short factual or simple statement or declarative statement\n"
+#             "- article: long, analytical, or opinion-based content\n\n"
+#             "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
 
-            "STRICT RULES:\n"
-            "- Output ONLY one word\n"
-            "- No punctuation\n"
-            "- No explanation\n"
-            "- No extra text\n"
+#             "STRICT RULES:\n"
+#             "- Output ONLY one word\n"
+#             "- No punctuation\n"
+#             "- No explanation\n"
+#             "- No extra text\n"
             
-        )
-        # system_instruction = (
-        #     "You are a highly accurate classifier for tech content.\n\n"
+#         )
 
-        #     "Classify the input into EXACTLY ONE of these categories:\n"
-        #     "[question, project, information, article]\n\n"
 
-        #     "DEFINITIONS:\n"
+#هاد يلي عطاني ياه كلود بس ما جربتو
+#  system_instruction = (
+#     "You are a post classifier. Classify the post into exactly one of these categories:\n\n"
+#     "- question: the user is asking for help or has a problem they need solved\n"
+#     "- project: the user is announcing or presenting something they built or completed\n"
+#     "- information: the user is sharing a short tip, fact, or useful info\n"
+#     "- article: the user wrote a long detailed explanation or tutorial\n\n"
+#     "RULES:\n"
+#     "- Return ONLY the category name, nothing else\n"
+#     "- No explanation, no punctuation, just one word\n"
+#     "- If unsure between information and article, check length — short = information, long = article\n"
+#     "- project ONLY if the user says they built, finished, or is presenting something they made\n"
+# )
 
-        #     "- question: asking something (how, why, what, هل, كيف) OR any indirect question or doubt.\n"
+# user_prompt = f"Classify this post:\n\n{content}"
 
-        #     "- project: if the user mentions building, creating, developing, finishing, or working on something "
-        #     "(e.g., 'I built', 'I created', 'I finished', 'I worked on', 'اشتغلت على', 'سويت', 'بنيت', 'طورت'), "
-        #     "EVEN if it includes explanation or opinion.\n"
 
-        #     #"- information: ONLY short, direct factual statements with NO personal opinion, NO experience, NO story.\n"
-        #    "- information: direct fact that anyone would agree with, no personal take, no advice.\n"
 
-        #     "- article: any content that includes opinion, explanation, reflection, or trends, "
-        #     "especially if it does NOT describe building something.\n\n"
+#         url = "https://api.groq.com/openai/v1/chat/completions"
 
-        #     "STRICT RULES:\n"
-        #         "- If user built or worked on something → project\n"
-        #         "- If there is ANY question → question\n"
-        #         "- If it's a short direct fact with no opinion → information\n"  # ← قدميها قبل article
-        #         "- If it includes opinion, reflection, or analysis → article\n"
-        #         "- If still unclear → information\n"
+#         headers = {
+#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
 
-        #     "OUTPUT RULES:\n"
-        #     "- Output ONLY one word\n"
-        #     "- No punctuation\n"
-        #     "- No explanation\n"
-        #     )  
-        url = "https://api.groq.com/openai/v1/chat/completions"
+#         payload = {
+#             "model": "llama-3.1-8b-instant",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": user_content}
+#             ],
+#             "temperature": 0.0,
+#             "max_tokens": 5
+#         }
 
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
+#         try:
+#             response = requests.post(url, json=payload, headers=headers, timeout=15)
+#             result = response.json()
 
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_content}
-            ],
-            "temperature": 0.0,
-            "max_tokens": 5
-        }
+#             if 'choices' in result:
+#                 post_type = result['choices'][0]['message']['content'].strip().lower()
 
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=15)
-            result = response.json()
+#                 post_type = "".join(filter(str.isalpha, post_type))
 
-            if 'choices' in result:
-                post_type = result['choices'][0]['message']['content'].strip().lower()
+#                 valid = ["question", "project", "information", "article"]
+#                 if post_type not in valid:
+#                     post_type = "information"
 
-                post_type = "".join(filter(str.isalpha, post_type))
+#                 # #  ترجمة حسب اللغة
+#                 # if user_lang == "ar":
+#                 #     mapping = {
+#                 #         "question": "سؤال",
+#                 #         "project": "مشروع",
+#                 #         "information": "معلومة",
+#                 #         "article": "مقال"
+#                 #     }
+#                 #     post_type = mapping.get(post_type, "معلومة")
 
-                valid = ["question", "project", "information", "article"]
-                if post_type not in valid:
-                    post_type = "information"
+#                 return Response({
+#                     "post_type": post_type
+#                 }, status=status.HTTP_200_OK)
 
-                # #  ترجمة حسب اللغة
-                # if user_lang == "ar":
-                #     mapping = {
-                #         "question": "سؤال",
-                #         "project": "مشروع",
-                #         "information": "معلومة",
-                #         "article": "مقال"
-                #     }
-                #     post_type = mapping.get(post_type, "معلومة")
+#             else:
+#                 return Response({
+#                     "error": "Classification failed",
+#                     "details": result
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({
+#                 "error": "Connection error",
+#                 "details": str(e)
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class ClassifyPostAPIView(APIView):
+        permission_classes = [IsAuthenticated]
+
+
+        def post(self, request):
+            user_content = request.data.get("content")
+
+            if not user_content:
+                return Response(
+                    {"error": "No content provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            API_URL = "https://router.huggingface.co/hf-inference/models/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+
+            headers = {
+                "Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}",
+                "X-Wait-For-Model": "true"
+            }
+
+            payload = {
+                "inputs": user_content,
+                "parameters": {
+                    # "candidate_labels": [
+                    #     "technical question",
+                    #     "software project",
+                    #     "technical showcase or achievement",
+                    #     "technical article"
+                    # ]
+                    "candidate_labels": [
+                    "asking for help or seeking an answer",
+                    "presenting a completed software product",
+                    "sharing a fact or useful information",
+                    "writing an in-depth tutorial or article"
+                ]
+                }
+            }
+                #"candidate_labels": [
+                #     "asking a technical question or seeking help",
+                #     "sharing a software project or product",
+                #     "sharing technical knowledge or tips",
+                #     "writing a technical article or tutorial"
+                # ]
+
+            # label_mapping = {
+            #     "technical question": "question",
+            #     "software project": "project",
+            #     "technical showcase or achievement": "information",
+            #     "technical article or tutorial": "article",
+            # }
+            label_mapping = {
+                "asking for help or seeking an answer": "question",
+                "presenting a completed software product": "project",
+                "sharing a fact or useful information": "information",
+                "writing an in-depth tutorial or article": "article",
+            }
+
+            try:
+                response = requests.post(
+                    API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                )
+
+                result = response.json()
+
+                print(result)
+
+                # أحياناً HuggingFace يرجع List
+                if isinstance(result, list):
+                    result = result[0]
+
+                # تحقق من وجود labels
+                if "labels" not in result and "label" not in result:
+                    return Response({
+                        "error": "Invalid response from HuggingFace",
+                        "details": result
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                # بيدعم الصيغتين
+                if "labels" in result:
+                    best_label = result["labels"][0]
+                    best_score = result["scores"][0]
+                else:
+                    best_label = result["label"]
+                    best_score = result["score"]
 
                 return Response({
-                    "post_type": post_type
+                    "post_type": label_mapping.get(best_label, "information"),
+                    "confidence": round(best_score, 3)
                 }, status=status.HTTP_200_OK)
 
-            else:
+            except Exception as e:
                 return Response({
                     "error": "Classification failed",
-                    "details": result
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    "details": str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        except Exception as e:
-            return Response({
-                "error": "Connection error",
-                "details": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+
+
 
 
 
