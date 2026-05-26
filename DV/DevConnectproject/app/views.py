@@ -2492,7 +2492,8 @@ class ImprovePostAPIView(APIView):
           if 'choices' in result:
                 improved_text = result['choices'][0]['message']['content'].strip()
         # تنظيف النص من المحارف الغريبة
-                improved_text = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', improved_text)                
+                improved_text = re.sub(r'[^\u0600-\u06FFa-zA-Z0-9\s.,!?،؟:;()\-\n]','',improved_text)
+                improved_text = re.sub(r'\s{2,}', ' ', improved_text).strip()
                 return Response({
                     "improved_text": improved_text,
                      }, status=status.HTTP_200_OK)
@@ -2597,15 +2598,6 @@ class ImprovePostAPIView(APIView):
 #                 if post_type not in valid:
 #                     post_type = "information"
 
-#                 # #  ترجمة حسب اللغة
-#                 # if user_lang == "ar":
-#                 #     mapping = {
-#                 #         "question": "سؤال",
-#                 #         "project": "مشروع",
-#                 #         "information": "معلومة",
-#                 #         "article": "مقال"
-#                 #     }
-#                 #     post_type = mapping.get(post_type, "معلومة")
 
 #                 return Response({
 #                     "post_type": post_type
@@ -2625,105 +2617,124 @@ class ImprovePostAPIView(APIView):
 
 
 
+
+
+def rule_based_classify(content):
+    # 1. الأولوية القصوى للطول: إذا النص طويل جداً فهو مقال، اتركي القرار للـ AI
+    if len(content) > 500:
+        return "article"        
+
+    if "?" in content or "؟" in content:
+        return "question"
+
+    # تنظيف النص: تحويله لصغير وإزالة علامات الترقيم الملتصقة بالكلمات
+    # ريجكس يترك فقط الحروف العربية والإنجليزية والأرقام والمسافات
+    clean_content = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', content.lower())
+    words_set = set(clean_content.split())
+        
+    project_words = {
+        "مشروعي", "تطبيقي", "موقعي", "بنيت", "صممت", "طورت", "أطلقت", "برمجت", 
+        "انتهيت من", "اقدم لكم", "حابب شارككم", "رأيكم ببرنامجي", "شغال على مشروع",
+        "تجربتي في بناء", "نسخة تجريبية", "لوحة تحكم","مشروع",
+        "built", "finished", "presenting", "launched", "i made", "i created",
+        "proud to share", "happy to announce", "just released", "my project", 
+         "my app", "my website", "github repo", "repository", "deployed", "side project"
+    }
+    # تقاطع المجموعات (Intersection) أسرع بكثير وأدق
+    if words_set.intersection(project_words):
+        return "project"
+        
+    question_words = {
+    "كيف", "ما هو", "هل", "ليش", "شو", "لماذا", "متى",  "كيفية",
+    "حدا بيعرف", "مين عنده فكرة", "في طريقة لـ", "ممكن مساعدة",
+    "عندي مشكلة", "عم يطلعلي خطأ", "كيف حل", "مشكلة في الـ", "error ", 
+    "يظهر لي كود", "ليش عم يعلق", "ما عم يشتغل", "ضرب عندي", "فشل الاتصال",
+    "how", "what", "why", "when", "where", "is it", "can i", "should i", 
+    "how to", "anyone knows", "help with", "error", "issue", "bug", "problem",
+    "failed to", "unable to", "not working", "how can ax"
+   }
+    if words_set.intersection(question_words):
+        return "question"
+    
+    return None
+
+
+
+
+def ai_classify(content):
+    # استخدام رابط الـ router الافتراضي والمستقر
+    API_URL = "https://router.huggingface.co/hf-inference/models/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+    
+    headers = {
+        "Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}",
+        "X-Wait-For-Model": "true"
+    }
+    
+    payload = {
+        "inputs": content,
+        "parameters": {
+            "candidate_labels": [
+                "asking a technical question or seeking help",
+                "presenting a completed software product",
+                "sharing a useful technical fact or tip",
+                "writing a detailed technical article or tutorial"
+            ]
+        }
+    }
+    
+    label_mapping = {
+        "asking a technical question or seeking help": "question",
+        "presenting a completed software project": "project",
+        "sharing a useful technical fact or tip": "information",
+        "writing a detailed technical article or tutorial": "article",
+    }
+    
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
+        result = response.json()
+        
+        if isinstance(result, list):
+            result = result[0]
+        
+        if "labels" in result:
+            best_label = result["labels"][0]
+            return label_mapping.get(best_label, "information")
+            
+    except Exception:
+        pass
+        
+    return "information" # Fallback دائم في حال حدوث أي خطأ بالشبكة
+
+
 class ClassifyPostAPIView(APIView):
-        permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request):
+        content = request.data.get("content")
 
-        def post(self, request):
-            user_content = request.data.get("content")
+        if not content:
+            return Response(
+                {"error": "No content provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            if not user_content:
-                return Response(
-                    {"error": "No content provided"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # الخطوة 1: جرب القواعد الصارمة أولاً
+        rule_result = rule_based_classify(content)
 
-            API_URL = "https://router.huggingface.co/hf-inference/models/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+        # الخطوة 2: إذا أعطت القواعد جواباً حاسماً، رجعه فوراً (توفير وقت الـ API)
+        if rule_result is not None:
+            return Response({
+                "post_type": rule_result,
+                "source": "rules"
+            }, status=status.HTTP_200_OK)
+        
+        # الخطوة 3: الحالات الرمادية أو غير الواضحة نرسلها للـ AI ليفصل فيها بطلب واحد موحد
+        ai_result = ai_classify(content)
 
-            headers = {
-                "Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}",
-                "X-Wait-For-Model": "true"
-            }
-
-            payload = {
-                "inputs": user_content,
-                "parameters": {
-                    # "candidate_labels": [
-                    #     "technical question",
-                    #     "software project",
-                    #     "technical showcase or achievement",
-                    #     "technical article"
-                    # ]
-                    "candidate_labels": [
-                    "asking for help or seeking an answer",
-                    "presenting a completed software product",
-                    "sharing a fact or useful information",
-                    "writing an in-depth tutorial or article"
-                ]
-                }
-            }
-                #"candidate_labels": [
-                #     "asking a technical question or seeking help",
-                #     "sharing a software project or product",
-                #     "sharing technical knowledge or tips",
-                #     "writing a technical article or tutorial"
-                # ]
-
-            # label_mapping = {
-            #     "technical question": "question",
-            #     "software project": "project",
-            #     "technical showcase or achievement": "information",
-            #     "technical article or tutorial": "article",
-            # }
-            label_mapping = {
-                "asking for help or seeking an answer": "question",
-                "presenting a completed software product": "project",
-                "sharing a fact or useful information": "information",
-                "writing an in-depth tutorial or article": "article",
-            }
-
-            try:
-                response = requests.post(
-                    API_URL,
-                    headers=headers,
-                    json=payload,
-                    timeout=30
-                )
-
-                result = response.json()
-
-                print(result)
-
-                # أحياناً HuggingFace يرجع List
-                if isinstance(result, list):
-                    result = result[0]
-
-                # تحقق من وجود labels
-                if "labels" not in result and "label" not in result:
-                    return Response({
-                        "error": "Invalid response from HuggingFace",
-                        "details": result
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                # بيدعم الصيغتين
-                if "labels" in result:
-                    best_label = result["labels"][0]
-                    best_score = result["scores"][0]
-                else:
-                    best_label = result["label"]
-                    best_score = result["score"]
-
-                return Response({
-                    "post_type": label_mapping.get(best_label, "information"),
-                    "confidence": round(best_score, 3)
-                }, status=status.HTTP_200_OK)
-
-            except Exception as e:
-                return Response({
-                    "error": "Classification failed",
-                    "details": str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        return Response({
+            "post_type": ai_result,
+            "source": "ai"
+        }, status=status.HTTP_200_OK)
 
 
 
@@ -3088,133 +3099,7 @@ class FindBestAnswerAPIView(APIView):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# import json
-# import requests
-# from django.conf import settings
-# from django.shortcuts import get_object_or_404
-# from django.db.models import Count, Q, F
-# from rest_framework.views import APIView
-# from rest_framework.response import Response
-# from rest_framework.permissions import IsAuthenticated
-# from .models import Post, Comment
-
-# class AskAIView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         post_id = request.data.get('post_id')
-#         action = request.data.get('action') 
-#         user_lang = request.data.get('lang', 'ar')
-#         post = get_object_or_404(Post, id=post_id)
-        
-#         # تحضير السياق للـ AI
-#         if action == 'find_best_answer':
-#             comments_context = ""
-#             top_comments = Comment.objects.filter(post=post, parent__isnull=True).annotate(
-#                 computed_useful=Count('reactions', filter=Q(reactions__reaction_type='useful')),
-#                 computed_not_useful=Count('reactions', filter=Q(reactions__reaction_type='not_useful'))
-#             ).annotate(score=F('computed_useful') - F('computed_not_useful')).order_by('-score')[:15].prefetch_related('replies')
-
-#             for comment in top_comments:
-#                 comments_context += f"\n[ID: {comment.id} | Score: {comment.score}] Content: {comment.content}"
-#                 for reply in comment.replies.all():
-#                     comments_context += f"\n    -> [Reply to {comment.id}] Content: {reply.content}"
-#         else:
-#             comments_context = "\n".join(Comment.objects.filter(post=post).values_list('content', flat=True))
-
-#         # القواميس (استخدمت نصوصك الأصلية مع إضافة شرط الـ JSON)
-#         prompts = {
-#             'summarize': (
-#                 f"Provide a summary of the content: {post.content}. "
-#                 f"Respond in {user_lang}. Do not use markdown headers. No introductory phrases. "
-#                 f"Structure your response exactly as a JSON object: "
-#                 f"{{'overview': 'One-sentence General Overview of the topic', 'takeaways': ['Takeaway 1', 'Takeaway 2', 'Takeaway 3']}}"
-#             ),
-            
-#             'explain_code': (
-#                 f"Analyze the following code strictly: {post.code}. "
-#                 f"Respond in {user_lang}. "
-#                 f"Rules: 1. State the core idea in exactly one sentence. 2. Explain clearly. 3. Do NOT add suggestions/lectures. "
-#                 f"Return ONLY a JSON object: {{'core_idea': 'string', 'explanation': 'string'}}"
-#             ),
-            
-#             'analyze_comments': (
-#                 f"Analyze these comments: {comments_context}. "
-#                 f"Respond in {user_lang}. Rules: No polite filler, no intro. "
-#                 f"Structure your response exactly as a JSON object: "
-#                 f"{{'discussion_summary': 'brief narrative summary', 'most_important_points': ['point 1', 'point 2'], 'sentiment': 'one word'}}"
-#             ),
-
-#             'code_difficulty': (
-#                 f"Analyze the following code snippet: {post.code}. "
-#                 f"Respond in {user_lang}. Rules: No markdown headers, no intro. "
-#                 f"Structure your response exactly as a JSON object: "
-#                 f"{{'difficulty_level': 1_to_5_integer, 'reasoning': 'one-sentence explanation'}}"
-#             ),
-            
-#             # 'find_best_answer': (
-#             #     f"You are a data extraction engine. Identify the SINGLE most technically accurate comment that solves the user's problem. "
-#             #     f"Post Question: {post.content}. Data: {comments_context}. "
-#             #     f"Respond in {user_lang}. "
-#             #     f"Return ONLY a JSON object: "
-#             #     f"{{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
-#             #     f"If no solution found, use comment_id: null."
-#             # )
-#             'find_best_answer': (
-#                 f"You are a data extraction engine. "
-#                 f"Your task is to identify the SINGLE most technically accurate comment (main or reply) that solves the user's problem. "
-#                 f"The user provided a post and potentially a code snippet. Evaluate the comments based on how well they solve the problem given the context. "
-#                 f"Post Question: {post.content} "
-#                 f"Code Snippet: {getattr(post, 'code', 'No code provided')} "
-#                 f"Data (Comments and Replies):\n{comments_context} "
-#                 f"Return ONLY a JSON object: {{'comment_id': int_or_null, 'content': 'string', 'reasoning': 'one short sentence'}}. "
-#                 f"If no solution found, use comment_id: null."
-#             ),
-#         }
-
-#         # نداء الـ API
-#         payload = {
-#             "model": "llama-3.1-8b-instant",
-#             "messages": [
-#                 {"role": "system", "content": "You are a JSON API. Respond ONLY with valid JSON structure as requested. No extra text."},
-#                 {"role": "user", "content": prompts.get(action, "Explain this")}
-#             ],
-#             "temperature": 0.2
-#         }
-        
-#         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-        
-#         try:
-#             response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=15)
-#             ai_content = response.json()['choices'][0]['message']['content']
-            
-#             # تنظيف الـ JSON
-#             clean_json = ai_content.replace('```json', '').replace('```', '').strip()
-#             data = json.loads(clean_json)
-#             return Response(data, status=200)
-            
-#         except Exception as e:
-#             return Response({"error": "Failed to process", "details": str(e)}, status=500)
-
-
-
-
+#غير مستخدم
 class SuggestReplyView(APIView):
     permission_classes = [IsAuthenticated]
 
