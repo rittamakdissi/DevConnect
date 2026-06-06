@@ -1611,9 +1611,15 @@ class SendOTPView(APIView):
         otp_code = str(random.randint(100000, 999999))
 
         # 3. حفظ الكود في قاعدة البيانات (تحديث إذا كان موجوداً أو إنشاء جديد)
-        PasswordResetCode.objects.update_or_create(
-            email=email, 
-            defaults={'code': otp_code}
+        # PasswordResetCode.objects.update_or_create(
+        #     email=email, 
+        #     defaults={'code': otp_code}
+        # )
+        PasswordResetCode.objects.filter(email=email).delete()
+        PasswordResetCode.objects.create(
+            email=email,
+            code=otp_code,
+            attempts=0
         )
 
         # 4. إرسال الإيميل الحقيقي
