@@ -1674,7 +1674,7 @@ class VerifyOTPView(APIView):
         if timezone.now() > record.created_at + timedelta(minutes=10):
             record.delete()
             return Response({"error": "Verification code has expired."}, status=400)
-
+        
         # التحقق من صحة الكود 
         if record.code != otp:
             record.attempts += 1 # زيادة عدد المحاولات الفاشلة

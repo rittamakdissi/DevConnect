@@ -12,7 +12,6 @@ class User(AbstractUser):
         ("female", "Female"),
     )
 
-    # Validators
     username_validator = RegexValidator(
         regex=r'^[A-Za-z_][A-Za-z0-9_]{2,19}$',
         message="username must start with letter or _ only, no spaces or special characters, length between 3 and 20.")
