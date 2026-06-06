@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from .models import *
 from django.db import transaction
 from django.core.exceptions import ValidationError
-
+from django.db.models import Count
 
 User = get_user_model()
 
@@ -149,9 +149,14 @@ class MyProfileSerializer(serializers.ModelSerializer):
          return obj.personal_photo.url
       return None
 
+    # def get_posts(self, obj):
+    #    # جلب كل منشورات المستخدم
+    #     posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
+    #     return PostSerializer(posts, many=True, context=self.context).data
     def get_posts(self, obj):
-       # جلب كل منشورات المستخدم
-        posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
+        posts = obj.posts.all().annotate(
+            total_comments=Count('comments')
+        ).order_by("-created_at")
         return PostSerializer(posts, many=True, context=self.context).data
 
 ########################################################################################################33
@@ -190,13 +195,17 @@ class OtherUserProfileSerializer(serializers.ModelSerializer):
         return Follow.objects.filter(follower=request.user, following=obj).exists()
 
 
-#  رح علقو هلق وبس نعمل سيريالايزر البوست بيمشي الحال
     def get_posts(self, obj):
         # جلب كل منشورات المستخدم
       #  posts = Post.objects.filter(owner=obj).order_by("-created_at")
       #  return PostSerializer(posts, many=True, context=self.context).data
-        posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
-        return PostSerializer(posts, many=True, context=self.context).data
+        # posts = obj.posts.all().order_by("-created_at")   # ← منشورات المستخدم
+        # return PostSerializer(posts, many=True, context=self.context).data
+            posts = obj.posts.all().annotate(
+                total_comments=Count('comments')
+            ).order_by("-created_at")
+            return PostSerializer(posts, many=True, context=self.context).data
+
 
 
 
