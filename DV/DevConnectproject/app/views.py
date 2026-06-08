@@ -1008,7 +1008,7 @@ class SearchView(APIView):
             ).prefetch_related(
              "images"
             ).annotate(
-            total_comments=Count("comments"),   
+            total_comments=Count("comments", distinct=True),   
             likes_count=Count("reactions", distinct=True),
             comments_count=Count("comments", distinct=True),
             total_engagement=F("likes_count") + F("comments_count")
@@ -1076,7 +1076,7 @@ class SearchView(APIView):
           ).prefetch_related(
             "images"
           ).annotate(
-          total_comments=Count("comments"),    
+          total_comments=Count("comments", distinct=True),    
           likes_count=Count("reactions", distinct=True),
           comments_count=Count("comments", distinct=True),
         # حساب النتيجة النهائية للترتيب
@@ -2274,7 +2274,8 @@ class GeneratePostAPIView(APIView):
             "- No hashtags.\n"
             "- No emojis.\n"
             "- No Russian or other languages.\n"
-             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            #"- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+            "- Keep technical terms in English .\n"
             "- Do NOT translate or transliterate technical terms into Arabic.\n"
             "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
         )
