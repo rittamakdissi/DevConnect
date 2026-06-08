@@ -3013,14 +3013,21 @@ class FindBestAnswerAPIView(APIView):
             '  "reason": "explain why this is the best answer"\n'
             "}\n\n"
 
+            # "Rules:\n"
+            # "- Do NOT explain outside JSON\n"
+            # "- Pick the most accurate answer\n"
+            # "- If no answer exists, return:\n"
+            # '{ "id": null, "reason": "No definitive solution found"}\n'
+            # "- Detect the language of the post content , and write the reason in that same language.\n"
+            # "- Forbidden:  DO NOT USE ANY Vietnamese, Chinese, Japanese, Korean, or any non-Arabic/English characters.\n"
             "Rules:\n"
-            "- Do NOT explain outside JSON\n"
-            "- Pick the most accurate answer\n"
-            "- If no answer exists, return:\n"
-            '{ "id": null, "reason": "No definitive solution found"}\n'
-            "- Detect the language of the post content , and write the reason in that same language.\n"
-            "- Forbidden:  DO NOT USE ANY Vietnamese, Chinese, Japanese, Korean, or any non-Arabic/English characters.\n"
-
+            "- Do NOT explain outside JSON.\n"
+            "- Pick the most accurate technical answer that COMPLETELY solves the problem.\n"
+            "- CRITICAL: If a comment only asks a question, complains, shares the same problem, or provides generic/unverified advice, it is NOT a solution.\n"
+            "- If no definitive solution exists, you MUST return EXACTLY:\n"
+            '  { "id": null, "reason": "No definitive solution found" }\n'
+            "- Detect the language of the post content, and write the 'reason' in that same language.\n"
+            "- Forbidden: DO NOT USE ANY Vietnamese, Chinese, Japanese, Korean, or any non-Arabic/English characters.\n"
         )
         post_context = f"Post:\n{post.content}\n"
 
