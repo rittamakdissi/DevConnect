@@ -1008,6 +1008,7 @@ class SearchView(APIView):
             ).prefetch_related(
              "images"
             ).annotate(
+            total_comments=Count("comments"),   
             likes_count=Count("reactions", distinct=True),
             comments_count=Count("comments", distinct=True),
             total_engagement=F("likes_count") + F("comments_count")
@@ -1075,6 +1076,7 @@ class SearchView(APIView):
           ).prefetch_related(
             "images"
           ).annotate(
+          total_comments=Count("comments"),    
           likes_count=Count("reactions", distinct=True),
           comments_count=Count("comments", distinct=True),
         # حساب النتيجة النهائية للترتيب
