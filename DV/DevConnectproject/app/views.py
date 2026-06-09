@@ -2644,17 +2644,17 @@ def rule_based_classify(content):
     project_words = {
         "مشروعي", "تطبيقي", "موقعي", "بنيت", "صممت", "طورت", "أطلقت", "برمجت", 
         "انتهيت من", "اقدم لكم", "حابب شارككم", "رأيكم ببرنامجي", "شغال على مشروع",
-        "تجربتي في بناء", "نسخة تجريبية", "لوحة تحكم","مشروع",
+        "تجربتي في بناء", "نسخة تجريبية", "لوحة تحكم","مشروع","رأيكم","شاركوني","شاركوني ارائكم","عطوني رأيكم","منصتي",
         "built", "finished", "presenting", "launched", "i made", "i created",
-        "proud to share", "happy to announce", "just released", "my project", 
-         "my app", "my website", "github repo", "repository", "deployed", "side project"
+        "proud to share", "happy to announce", "just released", "my project", "feedback",
+         "my app", "my website", "github repo", "repository", "deployed", "side project","launching","project","latest project","new platform",
     }
     # تقاطع المجموعات (Intersection) أسرع بكثير وأدق
     if words_set.intersection(project_words):
         return "project"
         
     question_words = {
-    "كيف", "ما هو", "هل", "ليش", "شو", "لماذا", "متى",  "كيفية",
+    "كيف", "ما هو", "هل", "ليش", "شو", "لماذا", "متى",  "كيفية","هل تعلم","حدا بيعرف",
     "حدا بيعرف", "مين عنده فكرة", "في طريقة لـ", "ممكن مساعدة",
     "عندي مشكلة", "عم يطلعلي خطأ", "كيف حل", "مشكلة في الـ", "error ", 
     "يظهر لي كود", "ليش عم يعلق", "ما عم يشتغل", "ضرب عندي", "فشل الاتصال",
