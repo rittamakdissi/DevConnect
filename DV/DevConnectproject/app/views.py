@@ -1737,11 +1737,12 @@ class SuggestTagsView(APIView):
             "5. Maximum 7 tags.\n"
             "6. Output MUST be in English ONLY.\n"
             "7. Avoid single-word tags that are too broad (e.g., 'code', 'project').\n"
-            "8. if the extracted tag is two words, connect them with an underscore (e.g., 'machine_learning' instead of 'machine learning').\n"
+            "8. if the extracted tag is two words, connect them with an underscore (e.g., 'machine_learning' instead of 'machine learning',...).\n"
            # "8. if the extracted tag is two words,connect them  together without space (e.g., 'machinelearning' instead of 'machine learning').\n"
         )
 
         payload = {
+           # "model": "openai/gpt-oss-120b",
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_instruction},
@@ -1770,84 +1771,78 @@ class SuggestTagsView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-###############################################################################################
 
-#شرح الكود 
+########## cerbas (gpt 120)البديل
 
-#هاد منبعتلو اللغة تبعت المستخدم 
-# class ExplainCodeAPIView(APIView):
-#     "شغالة" "ولكن البرومت تبع العربي بدو تعدييييل منيح "
-#     permission_classes = [IsAuthenticated]
-
+# class SuggestTagsView(APIView):
+#     "نهائي - باستخدام Cerebras وموديل Llama 3.1 8B المجاني"
 #     def post(self, request):
+#         content = request.data.get('content', '')
 
-#         user_code = request.data.get("code_content")
-#         user_lang = request.data.get("language", "en") # افتراضياً إنجليزي إذا ما انبعتت
+#         if not content:
+#             return Response({"error": "المحتوى فارغ، لا يمكن توليد تاغات."}, status=status.HTTP_400_BAD_REQUEST)
 
-#         if not user_code:
-#             return Response({"error": "No code content provided"}, status=status.HTTP_400_BAD_REQUEST)
-#         if user_lang == 'ar':
-#            system_instruction = (
-#     "أنت Senior Backend Developer تشرح الكود بأسلوب بشري احترافي واضح. "
-#     "ابدأ بجملة قصيرة تعطي فكرة الكود أو وظيفته بشكل مباشر بدون استخدام أي عناوين مثل (الهدف). "
-#     "بعدها اكتب فقرة واحدة تشرح اللوجيك بشكل تقني، . "
-#     "اكتب وكأنك تشرح لزميل مبرمج وليس كأنك تكتب مقال."
-#     "استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي بدون ما تخرب ترتيب الجملة. "
-#     "ركّز على كيف الكود يشتغل، شو بيعمل، وليش. "
-#     "تجنب الحشو والمقدمات العامة وخليك مباشر."
-#     "لا تكتب باللغة الروسية ابدا"
-#           )
+#         # 1. الرابط المباشر لمنصة Cerebras
+#         url = "https://api.cerebras.ai/v1/chat/completions"
+#         # 2. حطي مفتاح الـ Cerebras الجديد هون مباشرة (الذي يبدأ بـ csk-)
+#         CEREBRAS_API_KEY = "csk-epet3d64fctnmc5ym4xmymmenydeyxt9cvwk8mcfhkvfehxv"
 
-#            user_prompt = f"اشرح الكود التالي:\n\n{user_code}"
-#         else:
-#             system_instruction = (
-#                 "You are a Senior Backend Developer. Explain the code in one focused technical paragraph starting with the Goal. "
-#                 "STRICT RULES: "
-#                 "1. Start with (Goal: [Code Function]) then proceed to technical logic. "
-#                 "2. Use professional dev language. NO 'In this code' or 'There is a class'. "
-#                 "3. NO Russian, NO markdown stars (*), NO bullet points. "
-#                 "4. Keep it concise and direct."
-#             )
-#             user_prompt = f"Give me the goal and the logic of this code in a professional dev style:\n\n{user_code}"
-#         url = "https://api.groq.com/openai/v1/chat/completions"
- 
-#         headers = {
-#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-#             "Content-Type": "application/json"
-#         }
-         
-        
+#         system_instruction = (
+#             "You are an expert in extracting high-quality technical tags.\n\n"
+#             "TASK:\n"
+#             "- Extract the MOST relevant and specific technical tags from the content.\n\n"
+#             "STRICT RULES:\n"
+#             "1. Return ONLY tags separated by commas.\n"
+#             "2. NO explanations, NO sentences.\n"
+#             "   . NO translations.\n"
+#             "6. NEVER say things like 'Here are the tags'.\n"
+#             "7. NEVER explain the language.\n"
+#             "8. NEVER respond with full sentences.\n"
+#             "3. NO generic tags like 'technology', 'software', 'system'.\n"
+#             "4. Focus on:\n"
+#             "   - Programming languages (Python, Java, etc.)\n"
+#             "   - Frameworks (Django, React, etc.)\n"
+#             "   - Concepts (AI, Machine Learning, APIs, etc.)\n"
+#             "5. Maximum 7 tags.\n"
+#             "6. Output MUST be in English ONLY.\n"
+#             "7. Avoid single-word tags that are too broad (e.g., 'code', 'project').\n"
+#             "8. if the extracted tag is two words, connect them with an underscore (e.g., 'machine_learning' instead of 'machine learning').\n"
+#         )
+
 #         payload = {
-#             "model": "llama-3.3-70b-versatile",
+#             # 3. اسم نموذج الـ 8B المعتمد في Cerebras
+#             "model": "gpt-oss-120b",
 #             "messages": [
 #                 {"role": "system", "content": system_instruction},
-#                 {"role": "user", "content": user_prompt}
+#                 {"role": "user", "content": f"Extract the most important tags from this text:\n\n{content}"}
 #             ],
-#             "temperature": 0.3 # لضمان رد رصين ومختصر
+#             "temperature": 0.1
 #         }
 
-#         try: #ارسال الطلب لـ Groq
-#             response = requests.post(url, json=payload, headers=headers)
+#         headers = {
+#             # 4. تمرير المفتاح الجديد
+#             "Authorization": f"Bearer {CEREBRAS_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+
+#         try:
+#             response = requests.post(url, headers=headers, json=payload, timeout=20)
+#             response.raise_for_status()
 #             result = response.json()
-            
-#             if 'choices' in result:
-#                 explanation = result['choices'][0]['message']['content'].strip()
-#                 return Response({
-#                     "explanation": explanation,
-#                     #"status": "success",
-#                     #"language_used": user_lang
-#                 }, status=status.HTTP_200_OK)
-#             else:
-#                 return Response({
-#                     "error": "Failed to get response from Groq",
-#                     "details": result
-#                 }, status=status.HTTP_400_BAD_REQUEST)
+#             tags_string = result['choices'][0]['message']['content'].strip()
+        
+#             tags_list = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
+
+#             return Response({
+#                 "tags": tags_list
+#             }, status=status.HTTP_200_OK)
 
 #         except Exception as e:
-#             return Response({
-#                 "error": "Connection error",
-#                 "details": str(e)
-#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+###############################################################################################
 
 class ExplainCodeAPIView(APIView):
     "نهائي"
@@ -2524,39 +2519,39 @@ class ImprovePostAPIView(APIView):
 
 ########################################################################
   
-# class ClassifyPostAPIView(APIView):
-#     "نهائي"
-#     permission_classes = [IsAuthenticated]
+class ClassifyPostAPIView(APIView):
+    "نهائي"
+    permission_classes = [IsAuthenticated]
 
-#     def post(self, request):
-#         user_content = request.data.get("content")
-#         user_lang = request.data.get("language", "en")
+    def post(self, request):
+        user_content = request.data.get("content")
+        user_lang = request.data.get("language", "en")
 
-#         if not user_content:
-#             return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
+        if not user_content:
+            return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-#         system_instruction = (
-#             "You are a highly accurate classifier for tech content.\n\n"
+        system_instruction = (
+            "You are a highly accurate classifier for tech content.\n\n"
 
-#             "Classify the input into EXACTLY ONE of these categories:\n"
-#             "[question, project, information, article]\n\n"
+            "Classify the input into EXACTLY ONE of these categories:\n"
+            "[question, project, information, article]\n\n"
 
-#             "DEFINITIONS:\n"
-#             "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
-#             " project: user built, created, developed, finished, or worked on something "
-#             "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
-#             "even if the sentence also includes explanation or opinion\n"        
-#             "- information: short factual or simple statement or declarative statement\n"
-#             "- article: long, analytical, or opinion-based content\n\n"
-#             "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
+            "DEFINITIONS:\n"
+            "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
+            " project: user built, created, developed, finished, or worked on something "
+            "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
+            "even if the sentence also includes explanation or opinion\n"        
+            "- information: short factual or simple statement or declarative statement\n"
+            "- article: long, analytical, or opinion-based content\n\n"
+            "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
 
-#             "STRICT RULES:\n"
-#             "- Output ONLY one word\n"
-#             "- No punctuation\n"
-#             "- No explanation\n"
-#             "- No extra text\n"
+            "STRICT RULES:\n"
+            "- Output ONLY one word\n"
+            "- No punctuation\n"
+            "- No explanation\n"
+            "- No extra text\n"
             
-#         )
+        )
 
 
 #هاد يلي عطاني ياه كلود بس ما جربتو
@@ -2573,177 +2568,177 @@ class ImprovePostAPIView(APIView):
 #     "- project ONLY if the user says they built, finished, or is presenting something they made\n"
 # )
 
-# user_prompt = f"Classify this post:\n\n{content}"
+        user_prompt = f"Classify this post:\n\n{content}"
 
 
 
-#         url = "https://api.groq.com/openai/v1/chat/completions"
+        url = "https://api.groq.com/openai/v1/chat/completions"
 
-#         headers = {
-#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-#             "Content-Type": "application/json"
-#         }
-
-#         payload = {
-#             "model": "llama-3.1-8b-instant",
-#             "messages": [
-#                 {"role": "system", "content": system_instruction},
-#                 {"role": "user", "content": user_content}
-#             ],
-#             "temperature": 0.0,
-#             "max_tokens": 5
-#         }
-
-#         try:
-#             response = requests.post(url, json=payload, headers=headers, timeout=15)
-#             result = response.json()
-
-#             if 'choices' in result:
-#                 post_type = result['choices'][0]['message']['content'].strip().lower()
-
-#                 post_type = "".join(filter(str.isalpha, post_type))
-
-#                 valid = ["question", "project", "information", "article"]
-#                 if post_type not in valid:
-#                     post_type = "information"
-
-
-#                 return Response({
-#                     "post_type": post_type
-#                 }, status=status.HTTP_200_OK)
-
-#             else:
-#                 return Response({
-#                     "error": "Classification failed",
-#                     "details": result
-#                 }, status=status.HTTP_400_BAD_REQUEST)
-
-#         except Exception as e:
-#             return Response({
-#                 "error": "Connection error",
-#                 "details": str(e)
-#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
-
-def rule_based_classify(content):
-    # 1. الأولوية القصوى للطول: إذا النص طويل جداً فهو مقال، اتركي القرار للـ AI
-    if len(content) > 500:
-        return "article"        
-
-    if "?" in content or "؟" in content:
-        return "question"
-
-    # تنظيف النص: تحويله لصغير وإزالة علامات الترقيم الملتصقة بالكلمات
-    # ريجكس يترك فقط الحروف العربية والإنجليزية والأرقام والمسافات
-    clean_content = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', content.lower())
-    words_set = set(clean_content.split())
-        
-    project_words = {
-        "مشروعي", "تطبيقي", "موقعي", "بنيت", "صممت", "طورت", "أطلقت", "برمجت", 
-        "انتهيت من", "اقدم لكم", "حابب شارككم", "رأيكم ببرنامجي", "شغال على مشروع",
-        "تجربتي في بناء", "نسخة تجريبية", "لوحة تحكم","مشروع","رأيكم","شاركوني","شاركوني ارائكم","عطوني رأيكم","منصتي",
-        "built", "finished", "presenting", "launched", "i made", "i created",
-        "proud to share", "happy to announce", "just released", "my project", "feedback",
-         "my app", "my website", "github repo", "repository", "deployed", "side project","launching","project","latest project","new platform",
-    }
-    # تقاطع المجموعات (Intersection) أسرع بكثير وأدق
-    if words_set.intersection(project_words):
-        return "project"
-        
-    question_words = {
-    "كيف", "ما هو", "هل", "ليش", "شو", "لماذا", "متى",  "كيفية","هل تعلم","حدا بيعرف",
-    "حدا بيعرف", "مين عنده فكرة", "في طريقة لـ", "ممكن مساعدة",
-    "عندي مشكلة", "عم يطلعلي خطأ", "كيف حل", "مشكلة في الـ", "error ", 
-    "يظهر لي كود", "ليش عم يعلق", "ما عم يشتغل", "ضرب عندي", "فشل الاتصال",
-    "how", "what", "why", "when", "where", "is it", "can i", "should i", 
-    "how to", "anyone knows", "help with", "error", "issue", "bug", "problem",
-    "failed to", "unable to", "not working", "how can ax"
-   }
-    if words_set.intersection(question_words):
-        return "question"
-    
-    return None
-
-
-
-
-def ai_classify(content):
-    # استخدام رابط الـ router الافتراضي والمستقر
-    API_URL = "https://router.huggingface.co/hf-inference/models/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
-    
-    headers = {
-        "Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}",
-        "X-Wait-For-Model": "true"
-    }
-    
-    payload = {
-        "inputs": content,
-        "parameters": {
-            "candidate_labels": [
-                "asking a technical question or seeking help",
-                "presenting a completed software product",
-                "sharing a useful technical fact or tip",
-                "writing a detailed technical article or tutorial"
-            ]
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
         }
-    }
-    
-    label_mapping = {
-        "asking a technical question or seeking help": "question",
-        "presenting a completed software project": "project",
-        "sharing a useful technical fact or tip": "information",
-        "writing a detailed technical article or tutorial": "article",
-    }
-    
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
-        result = response.json()
-        
-        if isinstance(result, list):
-            result = result[0]
-        
-        if "labels" in result:
-            best_label = result["labels"][0]
-            return label_mapping.get(best_label, "information")
-            
-    except Exception:
-        pass
-        
-    return "information" # Fallback دائم في حال حدوث أي خطأ بالشبكة
+
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_content}
+            ],
+            "temperature": 0.0,
+            "max_tokens": 5
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            result = response.json()
+
+            if 'choices' in result:
+                post_type = result['choices'][0]['message']['content'].strip().lower()
+
+                post_type = "".join(filter(str.isalpha, post_type))
+
+                valid = ["question", "project", "information", "article"]
+                if post_type not in valid:
+                    post_type = "information"
 
 
-class ClassifyPostAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+                return Response({
+                    "post_type": post_type
+                }, status=status.HTTP_200_OK)
 
-    def post(self, request):
-        content = request.data.get("content")
+            else:
+                return Response({
+                    "error": "Classification failed",
+                    "details": result
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        if not content:
-            return Response(
-                {"error": "No content provided"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # الخطوة 1: جرب القواعد الصارمة أولاً
-        rule_result = rule_based_classify(content)
-
-        # الخطوة 2: إذا أعطت القواعد جواباً حاسماً، رجعه فوراً (توفير وقت الـ API)
-        if rule_result is not None:
+        except Exception as e:
             return Response({
-                "post_type": rule_result,
-                "source": "rules"
-            }, status=status.HTTP_200_OK)
-        
-        # الخطوة 3: الحالات الرمادية أو غير الواضحة نرسلها للـ AI ليفصل فيها بطلب واحد موحد
-        ai_result = ai_classify(content)
+                "error": "Connection error",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({
-            "post_type": ai_result,
-            "source": "ai"
-        }, status=status.HTTP_200_OK)
+
+
+
+
+# def rule_based_classify(content):
+#     # 1. الأولوية القصوى للطول: إذا النص طويل جداً فهو مقال، اتركي القرار للـ AI
+#     if len(content) > 500:
+#         return "article"        
+
+#     if "?" in content or "؟" in content:
+#         return "question"
+
+#     # تنظيف النص: تحويله لصغير وإزالة علامات الترقيم الملتصقة بالكلمات
+#     # ريجكس يترك فقط الحروف العربية والإنجليزية والأرقام والمسافات
+#     clean_content = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', content.lower())
+#     words_set = set(clean_content.split())
+        
+#     project_words = {
+#         "مشروعي", "تطبيقي", "موقعي", "بنيت", "صممت", "طورت", "أطلقت", "برمجت", 
+#         "انتهيت من", "اقدم لكم", "حابب شارككم", "رأيكم ببرنامجي", "شغال على مشروع",
+#         "تجربتي في بناء", "نسخة تجريبية", "لوحة تحكم","مشروع","رأيكم","شاركوني","شاركوني ارائكم","عطوني رأيكم","منصتي",
+#         "built", "finished", "presenting", "launched", "i made", "i created",
+#         "proud to share", "happy to announce", "just released", "my project", "feedback",
+#          "my app", "my website", "github repo", "repository", "deployed", "side project","launching","project","latest project","new platform",
+#     }
+#     # تقاطع المجموعات (Intersection) أسرع بكثير وأدق
+#     if words_set.intersection(project_words):
+#         return "project"
+        
+#     question_words = {
+#     "كيف", "ما هو", "هل", "ليش", "شو", "لماذا", "متى",  "كيفية","هل تعلم","حدا بيعرف",
+#     "حدا بيعرف", "مين عنده فكرة", "في طريقة لـ", "ممكن مساعدة",
+#     "عندي مشكلة", "عم يطلعلي خطأ", "كيف حل", "مشكلة في الـ", "error ", 
+#     "يظهر لي كود", "ليش عم يعلق", "ما عم يشتغل", "ضرب عندي", "فشل الاتصال",
+#     "how", "what", "why", "when", "where", "is it", "can i", "should i", 
+#     "how to", "anyone knows", "help with", "error", "issue", "bug", "problem",
+#     "failed to", "unable to", "not working", "how can ax"
+#    }
+#     if words_set.intersection(question_words):
+#         return "question"
+    
+#     return None
+
+
+
+
+# def ai_classify(content):
+#     # استخدام رابط الـ router الافتراضي والمستقر
+#     API_URL = "https://router.huggingface.co/hf-inference/models/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+    
+#     headers = {
+#         "Authorization": f"Bearer {settings.HUGGINGFACE_API_KEY}",
+#         "X-Wait-For-Model": "true"
+#     }
+    
+#     payload = {
+#         "inputs": content,
+#         "parameters": {
+#             "candidate_labels": [
+#                 "asking a technical question or seeking help",
+#                 "presenting a completed software product",
+#                 "sharing a useful technical fact or tip",
+#                 "writing a detailed technical article or tutorial"
+#             ]
+#         }
+#     }
+    
+#     label_mapping = {
+#         "asking a technical question or seeking help": "question",
+#         "presenting a completed software project": "project",
+#         "sharing a useful technical fact or tip": "information",
+#         "writing a detailed technical article or tutorial": "article",
+#     }
+    
+#     try:
+#         response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
+#         result = response.json()
+        
+#         if isinstance(result, list):
+#             result = result[0]
+        
+#         if "labels" in result:
+#             best_label = result["labels"][0]
+#             return label_mapping.get(best_label, "information")
+            
+#     except Exception:
+#         pass
+        
+#     return "information" # Fallback دائم في حال حدوث أي خطأ بالشبكة
+
+
+# class ClassifyPostAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         content = request.data.get("content")
+
+#         if not content:
+#             return Response(
+#                 {"error": "No content provided"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # الخطوة 1: جرب القواعد الصارمة أولاً
+#         rule_result = rule_based_classify(content)
+
+#         # الخطوة 2: إذا أعطت القواعد جواباً حاسماً، رجعه فوراً (توفير وقت الـ API)
+#         if rule_result is not None:
+#             return Response({
+#                 "post_type": rule_result,
+#                 "source": "rules"
+#             }, status=status.HTTP_200_OK)
+        
+#         # الخطوة 3: الحالات الرمادية أو غير الواضحة نرسلها للـ AI ليفصل فيها بطلب واحد موحد
+#         ai_result = ai_classify(content)
+
+#         return Response({
+#             "post_type": ai_result,
+#             "source": "ai"
+#         }, status=status.HTTP_200_OK)
 
 
 
