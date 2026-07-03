@@ -712,126 +712,293 @@ class FeedView(APIView):
 
     def get(self, request):
         user = request.user
-        
-        # 1. جلب IDs الأشخاص المتابَعين
-        #following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
         following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
 
-        # 2. استخراج التاغات المهتمة فيها بناءً على آخر 10 تفاعلات
-        # مع استثناء البوستات يلي بتفاعل فيها ب غير مفيد
-        user_reactions = Reaction.objects.filter(user=user)\
-         .exclude(reaction_type='not_useful')\
-          .select_related('post')\
-          .order_by('-created_at')[:10] 
+        reasons_map = {}
 
+        # بوستاتي
+        my_posts_ids = list(Post.objects.filter(user=user).values_list('id', flat=True))
+        for p_id in my_posts_ids:
+            reasons_map[p_id] = ""
+
+        # بوستات المتابعين
+        following_posts = list(
+            Post.objects.filter(user_id__in=following_ids)
+            .order_by('-created_at')
+            .values_list('id', flat=True)
+        )
+        for p_id in following_posts:
+            reasons_map[p_id] = "Following"
+
+        # ① تاغات الاهتمام — آخر 3 تفاعلات بدل 10
+        user_reactions = Reaction.objects.filter(user=user)\
+            .exclude(reaction_type='not_useful')\
+            .select_related('post')\
+            .order_by('-created_at')[:3]  # ← غيرنا من 10 لـ 3
 
         interested_tags = []
         for r in user_reactions:
             if r.post.tags:
-                tags_list = r.post.tags 
+                tags_list = r.post.tags
                 if isinstance(tags_list, list):
                     interested_tags.extend(tags_list)
-                else:
-                    # تحسباً لو كانت التاغات مخزنة كنص مفصول بفاصلة
-                    tags_list = str(r.post.tags).replace(',', ' ').split()
-                    interested_tags.extend(tags_list)
-        
-        # استخدام Counter لجلب أكثر 3 تاغات تكراراً (الأكثر اهتماماً)
+
         tag_counts = Counter(interested_tags)
         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
 
-        # 3. تجميع الـ IDs وتحديد الأسباب في قاموس (reasons_map)
-        reasons_map = {}
-        my_posts_ids = list(
-           Post.objects.filter(user=user)
-           .values_list('id', flat=True)
-         )
-        for p_id in my_posts_ids:
-             reasons_map[p_id] = ""
-        # أ. بوستات المتابعين
-        following_posts_ids = list(Post.objects.filter(user_id__in=following_ids).values_list('id', flat=True))
-        for p_id in following_posts_ids:
-            reasons_map[p_id] = "Following"
+        # ② لو ما في تفاعلات — استخدم تخصص المستخدم
+        if not unique_tags and user.specialization:
+            from .utils import normalize_specialization
+            spec_words = normalize_specialization(user.specialization)
+            unique_tags = list(spec_words)[:3]
 
-        # ب. بوستات الاهتمامات
-        interest_posts_ids = []
-        if unique_tags: 
+        # بوستات الاهتمامات
+        interest_posts = []
+        if unique_tags:
             tag_query = Q()
             for tag in unique_tags:
                 tag_query |= Q(tags__icontains=tag)
-            
-            interest_posts_ids = list(Post.objects.filter(tag_query)
+            interest_posts = list(
+                Post.objects.filter(tag_query)
                 .exclude(user_id__in=following_ids)
                 .exclude(user=user)
-                .values_list('id', flat=True)[:10])
-            
-            for p_id in interest_posts_ids:
-                if p_id not in reasons_map: # لا نغير السبب إذا كان البوست أصلاً من المتابعين
-                    reasons_map[p_id] = "Based on your interests" #Suggested for you
+                .order_by('-created_at')
+                .values_list('id', flat=True)[:30]
+            )
+            for p_id in interest_posts:
+                if p_id not in reasons_map:
+                    reasons_map[p_id] = "Based on your interests"
 
-        # ج. بوستات الترند (أكثر تفاعل بآخر 3 أيام)
+        # ③ بوستات الترند — بناءً على تفاعلات إيجابية + تعليقات
+        POSITIVE_REACTIONS = ['useful', 'creative_solution', 'same_problem']
+
         last_3_days = timezone.now() - timedelta(days=3)
-        trending_posts_ids = list(Post.objects.filter(created_at__gte=last_3_days)
-            .annotate(reactions_count=Count('reactions'))
-            .order_by('-reactions_count')
-            .values_list('id', flat=True)[:10])
-        
-        for p_id in trending_posts_ids:
-            if p_id not in reasons_map: # لا نغير السبب إذا كان موجوداً مسبقاً
+        trending_posts = list(
+            Post.objects.filter(created_at__gte=last_3_days)
+            .annotate(
+                positive_reactions=Count(
+                    'reactions',
+                    filter=Q(reactions__reaction_type__in=POSITIVE_REACTIONS),
+                    distinct=True
+                ),
+                comments_count=Count('comments', distinct=True),
+                engagement_score=F('positive_reactions') + F('comments_count')
+            )
+            .filter(engagement_score__gt=0)  # لازم يكون في تفاعل إيجابي أو تعليق
+            .exclude(user=user)
+            .exclude(user_id__in=following_ids)
+            .order_by('-engagement_score')
+            .values_list('id', flat=True)[:30]
+        )
+
+        # لو ما في ترند بـ 3 أيام — وسع لـ 7
+        if not trending_posts:
+            last_7_days = timezone.now() - timedelta(days=7)
+            trending_posts = list(
+                Post.objects.filter(created_at__gte=last_7_days)
+                .annotate(
+                    positive_reactions=Count(
+                        'reactions',
+                        filter=Q(reactions__reaction_type__in=POSITIVE_REACTIONS),
+                        distinct=True
+                    ),
+                    comments_count=Count('comments', distinct=True),
+                    engagement_score=F('positive_reactions') + F('comments_count')
+                )
+                .filter(engagement_score__gt=0)
+                .exclude(user=user)
+                .exclude(user_id__in=following_ids)
+                .order_by('-engagement_score')
+                .values_list('id', flat=True)[:30]
+            )
+
+        for p_id in trending_posts:
+            if p_id not in reasons_map:
                 reasons_map[p_id] = "Trending 🔥"
 
-        # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
-        all_ids = my_posts_ids+following_posts_ids + interest_posts_ids + trending_posts_ids
-        final_posts = Post.objects.filter(id__in=all_ids)\
+        # الخلط الذكي
+        page_num = int(request.GET.get('page', 1))
+        page_size = 10
+        offset = (page_num - 1) * page_size
+
+        following_slice = following_posts[offset:offset + 6]
+        interest_slice = interest_posts[offset:offset + 2]
+        trending_slice = trending_posts[offset:offset + 2]
+
+        if len(following_slice) < 6:
+            extra_needed = 6 - len(following_slice)
+            interest_slice = interest_posts[offset:offset + 2 + extra_needed]
+            trending_slice = trending_posts[offset:offset + 2 + extra_needed]
+
+        mixed_ids = my_posts_ids + list(dict.fromkeys(
+            following_slice + interest_slice + trending_slice
+        ))
+
+        final_posts = Post.objects.filter(id__in=mixed_ids)\
             .select_related('user')\
             .prefetch_related('images')\
-            .annotate(total_comments=Count('comments'))\
-            .distinct()\
-            .order_by('-created_at')
-        # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
+            .annotate(total_comments=Count('comments', distinct=True))\
+            .distinct()
+
+        preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(mixed_ids)])
+        final_posts = final_posts.order_by(preserved_order)
+
         post_type = request.GET.get("type")
         if post_type:
             final_posts = final_posts.filter(post_type=post_type)
 
-        # الترتيب الزمني النهائي (الأحدث أولاً)
+        for post in final_posts:
+            post.suggestion_reason = reasons_map.get(post.id, "")
 
-     # هاد في حال حبينا دائما نجيب منشورات الاشخاص يلي منتابعن بالاول
-        # final_posts = final_posts.annotate(
-        #   priority=Case(
-        #     When(user_id__in=following_ids, then=Value(1)), # المتابعين لهم الأولوية 1
-        #     default=Value(2),                              # المقترح له الأولوية 2
-        #     output_field=IntegerField(),
-        #     )
-        # ).order_by('priority', '-created_at')
+        user_reactions_map = dict(
+            Reaction.objects.filter(user=request.user, post__in=final_posts)
+            .values_list('post_id', 'reaction_type')
+        )
+        saved_ids = set(
+            SavedPost.objects.filter(user=request.user)
+            .values_list("post_id", flat=True)
+        )
+
         paginator = PageNumberPagination()
-        paginator.page_size = 5  # عرض 5 بوستات في كل صفحة
-        
+        paginator.page_size = page_size
         result_page = paginator.paginate_queryset(final_posts, request)
 
-        for post in result_page:
-            post.suggestion_reason = reasons_map.get(post.id, "")
-        # following_ids_set = set(
-        #     Follow.objects.filter(follower=request.user)
-        #     .values_list('following_id', flat=True)
-        #       )
-        user_reactions_map = dict(
-             Reaction.objects.filter(user=request.user, post__in=result_page)
-            .values_list('post_id', 'reaction_type')
-             )
-        saved_ids = set(
-          SavedPost.objects.filter(user=request.user)
-          .values_list("post_id", flat=True)
-)
-        #serializer = PostSerializer(result_page, many=True, context={'request': request})
         serializer = PostSerializer(result_page, many=True, context={
-         'request': request,
-         'following_ids': following_ids,
-         'user_reactions': user_reactions_map,
-         'saved_ids': saved_ids
-})
+            'request': request,
+            'following_ids': following_ids,
+            'user_reactions': user_reactions_map,
+            'saved_ids': saved_ids,
+        })
         return paginator.get_paginated_response(serializer.data)
 
 
+#القديم
+#     def get(self, request):
+#         user = request.user
+        
+#         # 1. جلب IDs الأشخاص المتابَعين
+#         #following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+#         following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
+
+#         # 2. استخراج التاغات المهتمة فيها بناءً على آخر 10 تفاعلات
+#         # مع استثناء البوستات يلي بتفاعل فيها ب غير مفيد
+#         user_reactions = Reaction.objects.filter(user=user)\
+#          .exclude(reaction_type='not_useful')\
+#           .select_related('post')\
+#           .order_by('-created_at')[:10] 
+
+
+#         interested_tags = []
+#         for r in user_reactions:
+#             if r.post.tags:
+#                 tags_list = r.post.tags 
+#                 if isinstance(tags_list, list):
+#                     interested_tags.extend(tags_list)
+#                 else:
+#                     # تحسباً لو كانت التاغات مخزنة كنص مفصول بفاصلة
+#                     tags_list = str(r.post.tags).replace(',', ' ').split()
+#                     interested_tags.extend(tags_list)
+        
+#         # استخدام Counter لجلب أكثر 3 تاغات تكراراً (الأكثر اهتماماً)
+#         tag_counts = Counter(interested_tags)
+#         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
+
+#         # 3. تجميع الـ IDs وتحديد الأسباب في قاموس (reasons_map)
+#         reasons_map = {}
+#         my_posts_ids = list(
+#            Post.objects.filter(user=user)
+#            .values_list('id', flat=True)
+#          )
+#         for p_id in my_posts_ids:
+#              reasons_map[p_id] = ""
+#         # أ. بوستات المتابعين
+#         following_posts_ids = list(Post.objects.filter(user_id__in=following_ids).values_list('id', flat=True))
+#         for p_id in following_posts_ids:
+#             reasons_map[p_id] = "Following"
+
+#         # ب. بوستات الاهتمامات
+#         interest_posts_ids = []
+#         if unique_tags: 
+#             tag_query = Q()
+#             for tag in unique_tags:
+#                 tag_query |= Q(tags__icontains=tag)
+            
+#             interest_posts_ids = list(Post.objects.filter(tag_query)
+#                 .exclude(user_id__in=following_ids)
+#                 .exclude(user=user)
+#                 .values_list('id', flat=True)[:10])
+            
+#             for p_id in interest_posts_ids:
+#                 if p_id not in reasons_map: # لا نغير السبب إذا كان البوست أصلاً من المتابعين
+#                     reasons_map[p_id] = "Based on your interests" #Suggested for you
+
+#         # ج. بوستات الترند (أكثر تفاعل بآخر 3 أيام)
+#         last_3_days = timezone.now() - timedelta(days=3)
+#         trending_posts_ids = list(Post.objects.filter(created_at__gte=last_3_days)
+#             .annotate(reactions_count=Count('reactions'))
+#             .order_by('-reactions_count')
+#             .values_list('id', flat=True)[:10])
+        
+        
+        
+#         for p_id in trending_posts_ids:
+#             if p_id not in reasons_map: # لا نغير السبب إذا كان موجوداً مسبقاً
+#                 reasons_map[p_id] = "Trending 🔥"
+
+#         # 4. الدمج والفلترة النهائية بناءً على قائمة الـ IDs المجمعة
+#         all_ids = my_posts_ids+following_posts_ids + interest_posts_ids + trending_posts_ids
+#         final_posts = Post.objects.filter(id__in=all_ids)\
+#             .select_related('user')\
+#             .prefetch_related('images')\
+#             .annotate(total_comments=Count('comments'))\
+#             .distinct()\
+#             .order_by('-created_at')
+#         # فلترة حسب النوع (image/video) إذا تم إرساله في الـ Query Params
+#         post_type = request.GET.get("type")
+#         if post_type:
+#             final_posts = final_posts.filter(post_type=post_type)
+
+#         # الترتيب الزمني النهائي (الأحدث أولاً)
+
+#      # هاد في حال حبينا دائما نجيب منشورات الاشخاص يلي منتابعن بالاول
+#         # final_posts = final_posts.annotate(
+#         #   priority=Case(
+#         #     When(user_id__in=following_ids, then=Value(1)), # المتابعين لهم الأولوية 1
+#         #     default=Value(2),                              # المقترح له الأولوية 2
+#         #     output_field=IntegerField(),
+#         #     )
+#         # ).order_by('priority', '-created_at')
+#         paginator = PageNumberPagination()
+#         paginator.page_size = 5  # عرض 5 بوستات في كل صفحة
+        
+#         result_page = paginator.paginate_queryset(final_posts, request)
+
+#         for post in result_page:
+#             post.suggestion_reason = reasons_map.get(post.id, "")
+#         # following_ids_set = set(
+#         #     Follow.objects.filter(follower=request.user)
+#         #     .values_list('following_id', flat=True)
+#         #       )
+#         user_reactions_map = dict(
+#              Reaction.objects.filter(user=request.user, post__in=result_page)
+#             .values_list('post_id', 'reaction_type')
+#              )
+#         saved_ids = set(
+#           SavedPost.objects.filter(user=request.user)
+#           .values_list("post_id", flat=True)
+# )
+#         #serializer = PostSerializer(result_page, many=True, context={'request': request})
+#         serializer = PostSerializer(result_page, many=True, context={
+#          'request': request,
+#          'following_ids': following_ids,
+#          'user_reactions': user_reactions_map,
+#          'saved_ids': saved_ids
+# })
+#         return paginator.get_paginated_response(serializer.data)
+
+
+
+#####################################################################################################################
 #اقتراح مستخدمين بناءً على التخصص
 class SuggestedUsersView(APIView):
     """شغالة"""
