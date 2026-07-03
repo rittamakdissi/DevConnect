@@ -707,42 +707,49 @@ class SavedPostsListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 ######################################################################################    
 
-
 class FeedView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         page_num = int(request.GET.get('page', 1))
+        PAGE_SIZE = 10  # حجم الصفحة الثابت
         
         # 1. جلب معرفات الحسابات المتابعة
         following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
         
         reasons_map = {}
-
-        # 2. ميزة "المنشور الفوري الخاص بي" (فقط في الصفحة الأولى)
-        # نجلب البوستات التي نشرها المستخدم في آخر 1 دقائق لتثبيتها في الأعلى فوراً عند النشر
         my_recent_posts_ids = []
+
+        # 2. ميزة "المنشور الفوري" (فقط في الصفحة الأولى)
         if page_num == 1:
-            ten_minutes_ago = timezone.now() - timedelta(minutes=1)
+            one_minute_ago = timezone.now() - timedelta(minutes=1)
             my_recent_posts_ids = list(
-                Post.objects.filter(user=user, created_at__gte=ten_minutes_ago)
+                Post.objects.filter(user=user, created_at__gte=one_minute_ago)
                 .order_by('-created_at')
                 .values_list('id', flat=True)
             )
             for p_id in my_recent_posts_ids:
                 reasons_map[p_id] = "Just Posted"
 
-        # 3. بوستات المتابعين (العصب الرئيسي للفيد)
+        # -------------------------------------------------------------
+        # حساب كمية البيانات المطلوبة بناءً على الصفحة الحالية (Pagination Slicing)
+        # -------------------------------------------------------------
+        # النمط المتتبع في الدورة الواحدة (10 بوستات): 6 متابعة، 2 اهتمام، 2 ترند
+        f_size, f_offset = 6, (page_num - 1) * 6
+        i_size, i_offset = 2, (page_num - 1) * 2
+        t_size, t_offset = 2, (page_num - 1) * 2
+
+        # 3. بوستات المتابعين
         following_posts = list(
             Post.objects.filter(user_id__in=following_ids)
             .order_by('-created_at')
-            .values_list('id', flat=True)[:50]
+            .values_list('id', flat=True)[f_offset : f_offset + f_size]
         )
         for p_id in following_posts:
             reasons_map[p_id] = "Following"
 
-        # 4. تاغات الاهتمام (آخر 3 تفاعلات)
+        # 4. تاغات الاهتمام
         user_reactions = Reaction.objects.filter(user=user)\
             .exclude(reaction_type='not_useful')\
             .select_related('post')\
@@ -761,18 +768,18 @@ class FeedView(APIView):
             spec_words = normalize_specialization(user.specialization)
             unique_tags = list(spec_words)[:3]
 
-        # بوستات الاهتمامات
         interest_posts = []
         if unique_tags:
             tag_query = Q()
             for tag in unique_tags:
                 tag_query |= Q(tags__icontains=tag)
+            
             interest_posts = list(
                 Post.objects.filter(tag_query)
                 .exclude(user_id__in=following_ids)
                 .exclude(user=user)
                 .order_by('-created_at')
-                .values_list('id', flat=True)[:30]
+                .values_list('id', flat=True)[i_offset : i_offset + i_size]
             )
             for p_id in interest_posts:
                 if p_id not in reasons_map:
@@ -781,7 +788,7 @@ class FeedView(APIView):
         # 5. بوستات الترند
         POSITIVE_REACTIONS = ['useful', 'creative_solution', 'same_problem']
         
-        def get_trending(days_back):
+        def get_trending_sliced(days_back, offset, size):
             time_threshold = timezone.now() - timedelta(days=days_back)
             return list(
                 Post.objects.filter(created_at__gte=time_threshold)
@@ -794,40 +801,60 @@ class FeedView(APIView):
                 .exclude(user=user)
                 .exclude(user_id__in=following_ids)
                 .order_by('-engagement_score')
-                .values_list('id', flat=True)[:30]
+                .values_list('id', flat=True)[offset : offset + size]
             )
 
-        trending_posts = get_trending(3)
+        trending_posts = get_trending_sliced(3, t_offset, t_size)
         if not trending_posts:
-            trending_posts = get_trending(7)
+            trending_posts = get_trending_sliced(7, t_offset, t_size)
 
         for p_id in trending_posts:
             if p_id not in reasons_map:
                 reasons_map[p_id] = "Trending 🔥"
 
         # -------------------------------------------------------------
-        # 6. الخلط الذكي بدون بوستاتك القديمة
+        # 6. الخلط الذكي المحسّن للصفحة الحالية فقط
         # -------------------------------------------------------------
         mixed_feed_ids = []
-        max_len = max(len(following_posts), len(interest_posts), len(trending_posts))
+        f_idx, i_idx, t_idx = 0, 0, 0
         
-        for i in range(max_len):
-            # 3 بوستات متابعين
-            for j in range(3):
-                idx = i * 3 + j
-                if idx < len(following_posts): 
-                    mixed_feed_ids.append(following_posts[idx])
-            
-            # بوست اهتمام وبوست ترند
-            if i < len(interest_posts): 
-                mixed_feed_ids.append(interest_posts[i])
-            if i < len(trending_posts): 
-                mixed_feed_ids.append(trending_posts[i])
+        # تنفيذ النمط بدورة واحدة دقيقة تُنتج الـ 10 بوستات الخاصة بهذه الصفحة
+        # النمط المذكور بكودك: [2 متابعة، 1 اهتمام، 1 متابعة، 1 ترند] ثم [2 متابعة، 1 اهتمام، 1 ترند، 1 متابعة]
+        
+        # الجزء الأول من النمط
+        for _ in range(2):
+            if f_idx < len(following_posts):
+                mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+        if i_idx < len(interest_posts):
+            mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+        if f_idx < len(following_posts):
+            mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+        if t_idx < len(trending_posts):
+            mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
 
-        # إزالة التكرار من الفيد العام
+        # الجزء الثاني من النمط
+        for _ in range(2):
+            if f_idx < len(following_posts):
+                mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+        if i_idx < len(interest_posts):
+            mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+        if t_idx < len(trending_posts):
+            mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
+        if f_idx < len(following_posts):
+            mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+
+        # إضافة أي بوستات متبقية في القوائم المقتطعة (Fallback في حال نقص أي قائمة)
+        while f_idx < len(following_posts):
+            mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+        while i_idx < len(interest_posts):
+            mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+        while t_idx < len(trending_posts):
+            mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
+
+        # إزالة التكرار مع الحفاظ على الترتيب
         mixed_feed_ids = list(dict.fromkeys(mixed_feed_ids))
 
-        # 7. دمج البوست الجديد في القمة فقط إذا كنا في الصفحة الأولى
+        # 7. دمج البوست الفوري في القمة (فقط بالصفحة الأولى)
         final_mixed_ids = my_recent_posts_ids + mixed_feed_ids
 
         # 8. الاستعلام الفعلي من قاعدة البيانات والترتيب المحفوظ
@@ -845,7 +872,7 @@ class FeedView(APIView):
         if post_type:
             final_posts = final_posts.filter(post_type=post_type)
 
-        # إضافة التسمية
+        # إضافة التسمية للمقترحات
         for post in final_posts:
             post.suggestion_reason = reasons_map.get(post.id, "")
 
@@ -859,18 +886,188 @@ class FeedView(APIView):
             .values_list("post_id", flat=True)
         )
 
-        # 9. الترقيم عبر الـ Paginator
+        # 9. الترقيم المزيف المخصص (لأننا قمنا بالـ Slicing مسبقاً لحماية الأداء)
+        # نقوم بإنشاء باجنيتور مخصص يخدع الفرونت إند ليعتقد أن هناك صفحات تالية دائماً طالما الفيد ممتلئ
         paginator = PageNumberPagination()
-        paginator.page_size = 10
-        result_page = paginator.paginate_queryset(final_posts, request)
-
-        serializer = PostSerializer(result_page, many=True, context={
+        paginator.page_size = PAGE_SIZE
+        
+        serializer = PostSerializer(final_posts, many=True, context={
             'request': request,
             'following_ids': following_ids,
             'user_reactions': user_reactions_map,
             'saved_ids': saved_ids,
         })
+        
+        # تخصيص الاستجابة لتدعم التمرير اللانهائي (Infinite Scroll) بالفرونت إند بشكل سليم
+        has_next = len(final_posts) >= PAGE_SIZE
         return paginator.get_paginated_response(serializer.data)
+
+
+#يلي حبيتو
+# class FeedView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         user = request.user
+#         page_num = int(request.GET.get('page', 1))
+        
+#         # 1. جلب معرفات الحسابات المتابعة
+#         following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
+        
+#         reasons_map = {}
+
+#         # 2. ميزة "المنشور الفوري الخاص بي" (فقط في الصفحة الأولى)
+#         # نجلب البوستات التي نشرها المستخدم في آخر 1 دقائق لتثبيتها في الأعلى فوراً عند النشر
+#         my_recent_posts_ids = []
+#         if page_num == 1:
+#             ten_minutes_ago = timezone.now() - timedelta(minutes=1)
+#             my_recent_posts_ids = list(
+#                 Post.objects.filter(user=user, created_at__gte=ten_minutes_ago)
+#                 .order_by('-created_at')
+#                 .values_list('id', flat=True)
+#             )
+#             for p_id in my_recent_posts_ids:
+#                 reasons_map[p_id] = "Just Posted"
+
+#         # 3. بوستات المتابعين (العصب الرئيسي للفيد)
+#         following_posts = list(
+#             Post.objects.filter(user_id__in=following_ids)
+#             .order_by('-created_at')
+#             .values_list('id', flat=True)[:50]
+#         )
+#         for p_id in following_posts:
+#             reasons_map[p_id] = "Following"
+
+#         # 4. تاغات الاهتمام (آخر 3 تفاعلات)
+#         user_reactions = Reaction.objects.filter(user=user)\
+#             .exclude(reaction_type='not_useful')\
+#             .select_related('post')\
+#             .order_by('-created_at')[:3]
+
+#         interested_tags = []
+#         for r in user_reactions:
+#             if r.post.tags and isinstance(r.post.tags, list):
+#                 interested_tags.extend(r.post.tags)
+
+#         tag_counts = Counter(interested_tags)
+#         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
+
+#         if not unique_tags and user.specialization:
+#             from .utils import normalize_specialization
+#             spec_words = normalize_specialization(user.specialization)
+#             unique_tags = list(spec_words)[:3]
+
+#         # بوستات الاهتمامات
+#         interest_posts = []
+#         if unique_tags:
+#             tag_query = Q()
+#             for tag in unique_tags:
+#                 tag_query |= Q(tags__icontains=tag)
+#             interest_posts = list(
+#                 Post.objects.filter(tag_query)
+#                 .exclude(user_id__in=following_ids)
+#                 .exclude(user=user)
+#                 .order_by('-created_at')
+#                 .values_list('id', flat=True)[:30]
+#             )
+#             for p_id in interest_posts:
+#                 if p_id not in reasons_map:
+#                     reasons_map[p_id] = "Based on your interests"
+
+#         # 5. بوستات الترند
+#         POSITIVE_REACTIONS = ['useful', 'creative_solution', 'same_problem']
+        
+#         def get_trending(days_back):
+#             time_threshold = timezone.now() - timedelta(days=days_back)
+#             return list(
+#                 Post.objects.filter(created_at__gte=time_threshold)
+#                 .annotate(
+#                     positive_reactions=Count('reactions', filter=Q(reactions__reaction_type__in=POSITIVE_REACTIONS), distinct=True),
+#                     comments_count=Count('comments', distinct=True),
+#                     engagement_score=F('positive_reactions') + F('comments_count')
+#                 )
+#                 .filter(engagement_score__gt=0)
+#                 .exclude(user=user)
+#                 .exclude(user_id__in=following_ids)
+#                 .order_by('-engagement_score')
+#                 .values_list('id', flat=True)[:30]
+#             )
+
+#         trending_posts = get_trending(3)
+#         if not trending_posts:
+#             trending_posts = get_trending(7)
+
+#         for p_id in trending_posts:
+#             if p_id not in reasons_map:
+#                 reasons_map[p_id] = "Trending 🔥"
+
+#         # -------------------------------------------------------------
+#         # 6. الخلط الذكي بدون بوستاتك القديمة
+#         # -------------------------------------------------------------
+#         mixed_feed_ids = []
+#         max_len = max(len(following_posts), len(interest_posts), len(trending_posts))
+        
+#         for i in range(max_len):
+#             # 3 بوستات متابعين
+#             for j in range(3):
+#                 idx = i * 3 + j
+#                 if idx < len(following_posts): 
+#                     mixed_feed_ids.append(following_posts[idx])
+            
+#             # بوست اهتمام وبوست ترند
+#             if i < len(interest_posts): 
+#                 mixed_feed_ids.append(interest_posts[i])
+#             if i < len(trending_posts): 
+#                 mixed_feed_ids.append(trending_posts[i])
+
+#         # إزالة التكرار من الفيد العام
+#         mixed_feed_ids = list(dict.fromkeys(mixed_feed_ids))
+       
+#         # 7. دمج البوست الجديد في القمة فقط إذا كنا في الصفحة الأولى
+#         final_mixed_ids = my_recent_posts_ids + mixed_feed_ids
+
+#         # 8. الاستعلام الفعلي من قاعدة البيانات والترتيب المحفوظ
+#         final_posts = Post.objects.filter(id__in=final_mixed_ids)\
+#             .select_related('user')\
+#             .prefetch_related('images')\
+#             .annotate(total_comments=Count('comments', distinct=True))\
+#             .distinct()
+
+#         preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(final_mixed_ids)])
+#         final_posts = final_posts.order_by(preserved_order)
+
+#         # فلترة النوع
+#         post_type = request.GET.get("type")
+#         if post_type:
+#             final_posts = final_posts.filter(post_type=post_type)
+
+#         # إضافة التسمية
+#         for post in final_posts:
+#             post.suggestion_reason = reasons_map.get(post.id, "")
+
+#         # الملحقات (Reactions & Saved)
+#         user_reactions_map = dict(
+#             Reaction.objects.filter(user=request.user, post__in=final_posts)
+#             .values_list('post_id', 'reaction_type')
+#         )
+#         saved_ids = set(
+#             SavedPost.objects.filter(user=request.user)
+#             .values_list("post_id", flat=True)
+#         )
+
+#         # 9. الترقيم عبر الـ Paginator
+#         paginator = PageNumberPagination()
+#         paginator.page_size = 10
+#         result_page = paginator.paginate_queryset(final_posts, request)
+
+#         serializer = PostSerializer(result_page, many=True, context={
+#             'request': request,
+#             'following_ids': following_ids,
+#             'user_reactions': user_reactions_map,
+#             'saved_ids': saved_ids,
+#         })
+#         return paginator.get_paginated_response(serializer.data)
+    
 #القديم
 #     def get(self, request):
 #         user = request.user
