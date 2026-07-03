@@ -43,6 +43,8 @@ import re
 import json
 import requests
 from rest_framework.decorators import api_view, permission_classes
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
+
 from .utils import (
     normalize_specialization,
     expand_words,
@@ -888,9 +890,9 @@ class FeedView(APIView):
 
         # 9. الترقيم المزيف المخصص (لأننا قمنا بالـ Slicing مسبقاً لحماية الأداء)
         # نقوم بإنشاء باجنيتور مخصص يخدع الفرونت إند ليعتقد أن هناك صفحات تالية دائماً طالما الفيد ممتلئ
-        paginator = PageNumberPagination()
-        paginator.page_size = PAGE_SIZE
-        
+        # -------------------------------------------------------------
+        # 9. الترقيم المخصص (يدوي وآمن لحماية الأداء ومنع الـ AttributeError)
+        # -------------------------------------------------------------
         serializer = PostSerializer(final_posts, many=True, context={
             'request': request,
             'following_ids': following_ids,
@@ -898,9 +900,28 @@ class FeedView(APIView):
             'saved_ids': saved_ids,
         })
         
-        # تخصيص الاستجابة لتدعم التمرير اللانهائي (Infinite Scroll) بالفرونت إند بشكل سليم
+        # التحقق إذا كان هناك صفحة تالية (إذا رجعت الصفحة الحالية كاملة العدد، نفترض وجود المزيد لـ Infinite Scroll)
         has_next = len(final_posts) >= PAGE_SIZE
-        return paginator.get_paginated_response(serializer.data)
+        
+        # بناء روابط الـ Next والـ Previous بشكل ديناميكي ومتوافق مع الفرونت إند
+        current_url = request.build_absolute_uri()
+        
+        def get_page_url(page_to_set):
+            u = urlparse(current_url)
+            q = parse_qs(u.query)
+            q['page'] = [page_to_set]
+            return urlunparse(u._replace(query=urlencode(q, doseq=True)))
+
+        next_link = get_page_url(page_num + 1) if has_next else None
+        previous_link = get_page_url(page_num - 1) if page_num > 1 else None
+
+        # إرجاع الرد بنفس بنية Django REST Framework تماماً
+        return Response({
+            'next': next_link,
+            'previous': previous_link,
+            'count': None,  # نضعها None لأن الفيد متقلب وليس له حجم ثابت تماماً
+            'results': serializer.data
+        })
 
 
 #يلي حبيتو
