@@ -732,7 +732,7 @@ class FeedView(APIView):
                 .values_list('id', flat=True)
             )
             for p_id in my_recent_posts_ids:
-                reasons_map[p_id] = "Just Posted"
+                reasons_map[p_id] = ""
 
         # -------------------------------------------------------------
         # حساب كمية البيانات المطلوبة بناءً على الصفحة الحالية (Pagination Slicing)
