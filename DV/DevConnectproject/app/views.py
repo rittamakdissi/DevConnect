@@ -709,6 +709,219 @@ class SavedPostsListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 ######################################################################################    
 
+# class FeedView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         user = request.user
+#         page_num = int(request.GET.get('page', 1))
+#         PAGE_SIZE = 10  # حجم الصفحة الثابت
+        
+#         # 1. جلب معرفات الحسابات المتابعة
+#         following_ids = set(Follow.objects.filter(follower=user).values_list('following_id', flat=True))
+        
+#         reasons_map = {}
+#         my_recent_posts_ids = []
+
+#         # 2. ميزة "المنشور الفوري" (فقط في الصفحة الأولى)
+#         if page_num == 1:
+#             one_minute_ago = timezone.now() - timedelta(minutes=1)
+#             my_recent_posts_ids = list(
+#                 Post.objects.filter(user=user, created_at__gte=one_minute_ago)
+#                 .order_by('-created_at')
+#                 .values_list('id', flat=True)
+#             )
+#             for p_id in my_recent_posts_ids:
+#                 reasons_map[p_id] = ""
+
+#         # -------------------------------------------------------------
+#         # حساب كمية البيانات المطلوبة بناءً على الصفحة الحالية (Pagination Slicing)
+#         # -------------------------------------------------------------
+#         # النمط المتتبع في الدورة الواحدة (10 بوستات): 6 متابعة، 2 اهتمام، 2 ترند
+#         f_size, f_offset = 6, (page_num - 1) * 6
+#         i_size, i_offset = 2, (page_num - 1) * 2
+#         t_size, t_offset = 2, (page_num - 1) * 2
+
+#         # 3. بوستات المتابعين
+#         following_posts = list(
+#             Post.objects.filter(user_id__in=following_ids)
+#             .order_by('-created_at')
+#             .values_list('id', flat=True)[f_offset : f_offset + f_size]
+#         )
+#         for p_id in following_posts:
+#             reasons_map[p_id] = "Following"
+
+#         # 4. تاغات الاهتمام
+#         user_reactions = Reaction.objects.filter(user=user)\
+#             .exclude(reaction_type='not_useful')\
+#             .select_related('post')\
+#             .order_by('-created_at')[:3]
+
+#         interested_tags = []
+#         for r in user_reactions:
+#             if r.post.tags and isinstance(r.post.tags, list):
+#                 interested_tags.extend(r.post.tags)
+
+#         tag_counts = Counter(interested_tags)
+#         unique_tags = [tag for tag, _ in tag_counts.most_common(3)]
+
+#         if not unique_tags and user.specialization:
+#             from .utils import normalize_specialization
+#             spec_words = normalize_specialization(user.specialization)
+#             unique_tags = list(spec_words)[:3]
+
+#         interest_posts = []
+#         if unique_tags:
+#             tag_query = Q()
+#             for tag in unique_tags:
+#                 tag_query |= Q(tags__icontains=tag)
+            
+#             interest_posts = list(
+#                 Post.objects.filter(tag_query)
+#                 .exclude(user_id__in=following_ids)
+#                 .exclude(user=user)
+#                 .order_by('-created_at')
+#                 .values_list('id', flat=True)[i_offset : i_offset + i_size]
+#             )
+#             for p_id in interest_posts:
+#                 if p_id not in reasons_map:
+#                     reasons_map[p_id] = "Based on your interests"
+
+#         # 5. بوستات الترند
+#         POSITIVE_REACTIONS = ['useful', 'creative_solution', 'same_problem']
+        
+#         def get_trending_sliced(days_back, offset, size):
+#             time_threshold = timezone.now() - timedelta(days=days_back)
+#             return list(
+#                 Post.objects.filter(created_at__gte=time_threshold)
+#                 .annotate(
+#                     positive_reactions=Count('reactions', filter=Q(reactions__reaction_type__in=POSITIVE_REACTIONS), distinct=True),
+#                     comments_count=Count('comments', distinct=True),
+#                     engagement_score=F('positive_reactions') + F('comments_count')
+#                 )
+#                 .filter(engagement_score__gt=0)
+#                 .exclude(user=user)
+#                 .exclude(user_id__in=following_ids)
+#                 .order_by('-engagement_score')
+#                 .values_list('id', flat=True)[offset : offset + size]
+#             )
+
+#         trending_posts = get_trending_sliced(3, t_offset, t_size)
+#         if not trending_posts:
+#             trending_posts = get_trending_sliced(7, t_offset, t_size)
+
+#         for p_id in trending_posts:
+#             if p_id not in reasons_map:
+#                 reasons_map[p_id] = "Trending 🔥"
+
+#         # -------------------------------------------------------------
+#         # 6. الخلط الذكي المحسّن للصفحة الحالية فقط
+#         # -------------------------------------------------------------
+#         mixed_feed_ids = []
+#         f_idx, i_idx, t_idx = 0, 0, 0
+        
+#         # تنفيذ النمط بدورة واحدة دقيقة تُنتج الـ 10 بوستات الخاصة بهذه الصفحة
+#         # النمط المذكور بكودك: [2 متابعة، 1 اهتمام، 1 متابعة، 1 ترند] ثم [2 متابعة، 1 اهتمام، 1 ترند، 1 متابعة]
+        
+#         # الجزء الأول من النمط
+#         for _ in range(2):
+#             if f_idx < len(following_posts):
+#                 mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+#         if i_idx < len(interest_posts):
+#             mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+#         if f_idx < len(following_posts):
+#             mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+#         if t_idx < len(trending_posts):
+#             mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
+
+#         # الجزء الثاني من النمط
+#         for _ in range(2):
+#             if f_idx < len(following_posts):
+#                 mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+#         if i_idx < len(interest_posts):
+#             mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+#         if t_idx < len(trending_posts):
+#             mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
+#         if f_idx < len(following_posts):
+#             mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+
+#         # إضافة أي بوستات متبقية في القوائم المقتطعة (Fallback في حال نقص أي قائمة)
+#         while f_idx < len(following_posts):
+#             mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
+#         while i_idx < len(interest_posts):
+#             mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
+#         while t_idx < len(trending_posts):
+#             mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
+
+#         # إزالة التكرار مع الحفاظ على الترتيب
+#         mixed_feed_ids = list(dict.fromkeys(mixed_feed_ids))
+
+#         # 7. دمج البوست الفوري في القمة (فقط بالصفحة الأولى)
+#         final_mixed_ids = my_recent_posts_ids + mixed_feed_ids
+
+#         # 8. الاستعلام الفعلي من قاعدة البيانات والترتيب المحفوظ
+#         final_posts = Post.objects.filter(id__in=final_mixed_ids)\
+#             .select_related('user')\
+#             .prefetch_related('images')\
+#             .annotate(total_comments=Count('comments', distinct=True))\
+#             .distinct()
+
+#         preserved_order = Case(*[When(id=pk, then=pos) for pos, pk in enumerate(final_mixed_ids)])
+#         final_posts = final_posts.order_by(preserved_order)
+
+#         # فلترة النوع
+#         post_type = request.GET.get("type")
+#         if post_type:
+#             final_posts = final_posts.filter(post_type=post_type)
+
+#         # إضافة التسمية للمقترحات
+#         for post in final_posts:
+#             post.suggestion_reason = reasons_map.get(post.id, "")
+
+#         # الملحقات (Reactions & Saved)
+#         user_reactions_map = dict(
+#             Reaction.objects.filter(user=request.user, post__in=final_posts)
+#             .values_list('post_id', 'reaction_type')
+#         )
+#         saved_ids = set(
+#             SavedPost.objects.filter(user=request.user)
+#             .values_list("post_id", flat=True)
+#         )
+
+#         # 9. الترقيم المزيف المخصص (لأننا قمنا بالـ Slicing مسبقاً لحماية الأداء)
+#         # نقوم بإنشاء باجنيتور مخصص يخدع الفرونت إند ليعتقد أن هناك صفحات تالية دائماً طالما الفيد ممتلئ
+#         # -------------------------------------------------------------
+#         # 9. الترقيم المخصص (يدوي وآمن لحماية الأداء ومنع الـ AttributeError)
+#         # -------------------------------------------------------------
+#         serializer = PostSerializer(final_posts, many=True, context={
+#             'request': request,
+#             'following_ids': following_ids,
+#             'user_reactions': user_reactions_map,
+#             'saved_ids': saved_ids,
+#         })
+        
+#         # التحقق إذا كان هناك صفحة تالية (إذا رجعت الصفحة الحالية كاملة العدد، نفترض وجود المزيد لـ Infinite Scroll)
+#         has_next = len(final_posts) >= PAGE_SIZE
+        
+#         # بناء روابط الـ Next والـ Previous بشكل ديناميكي ومتوافق مع الفرونت إند
+#         current_url = request.build_absolute_uri()
+        
+#         def get_page_url(page_to_set):
+#             u = urlparse(current_url)
+#             q = parse_qs(u.query)
+#             q['page'] = [page_to_set]
+#             return urlunparse(u._replace(query=urlencode(q, doseq=True)))
+
+#         next_link = get_page_url(page_num + 1) if has_next else None
+#         previous_link = get_page_url(page_num - 1) if page_num > 1 else None
+
+#         # إرجاع الرد بنفس بنية Django REST Framework تماماً
+#         return Response({
+#             'next': next_link,
+#             'previous': previous_link,
+#             'count': None,  # نضعها None لأن الفيد متقلب وليس له حجم ثابت تماماً
+#             'results': serializer.data
+#         })
 class FeedView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -735,18 +948,17 @@ class FeedView(APIView):
                 reasons_map[p_id] = ""
 
         # -------------------------------------------------------------
-        # حساب كمية البيانات المطلوبة بناءً على الصفحة الحالية (Pagination Slicing)
+        # حساب كمية البيانات المطلوبة بناءً على الصفحة الحالية
         # -------------------------------------------------------------
-        # النمط المتتبع في الدورة الواحدة (10 بوستات): 6 متابعة، 2 اهتمام، 2 ترند
-        f_size, f_offset = 6, (page_num - 1) * 6
-        i_size, i_offset = 2, (page_num - 1) * 2
-        t_size, t_offset = 2, (page_num - 1) * 2
+        f_offset = (page_num - 1) * PAGE_SIZE
+        i_offset = (page_num - 1) * 2
+        t_offset = (page_num - 1) * 2
 
-        # 3. بوستات المتابعين
+        # 3. بوستات المتابعين (سحب حتى 10 بوستات لضمان تعبئة الصفحة إذا كانت الأقسام الأخرى فارغة)
         following_posts = list(
             Post.objects.filter(user_id__in=following_ids)
             .order_by('-created_at')
-            .values_list('id', flat=True)[f_offset : f_offset + f_size]
+            .values_list('id', flat=True)[f_offset : f_offset + PAGE_SIZE]
         )
         for p_id in following_posts:
             reasons_map[p_id] = "Following"
@@ -781,7 +993,7 @@ class FeedView(APIView):
                 .exclude(user_id__in=following_ids)
                 .exclude(user=user)
                 .order_by('-created_at')
-                .values_list('id', flat=True)[i_offset : i_offset + i_size]
+                .values_list('id', flat=True)[i_offset : i_offset + 2]
             )
             for p_id in interest_posts:
                 if p_id not in reasons_map:
@@ -806,22 +1018,19 @@ class FeedView(APIView):
                 .values_list('id', flat=True)[offset : offset + size]
             )
 
-        trending_posts = get_trending_sliced(3, t_offset, t_size)
+        trending_posts = get_trending_sliced(3, t_offset, 2)
         if not trending_posts:
-            trending_posts = get_trending_sliced(7, t_offset, t_size)
+            trending_posts = get_trending_sliced(7, t_offset, 2)
 
         for p_id in trending_posts:
             if p_id not in reasons_map:
                 reasons_map[p_id] = "Trending 🔥"
 
         # -------------------------------------------------------------
-        # 6. الخلط الذكي المحسّن للصفحة الحالية فقط
+        # 6. الخلط الذكي وتعبئة الـ 10 بوستات بالكامل
         # -------------------------------------------------------------
         mixed_feed_ids = []
         f_idx, i_idx, t_idx = 0, 0, 0
-        
-        # تنفيذ النمط بدورة واحدة دقيقة تُنتج الـ 10 بوستات الخاصة بهذه الصفحة
-        # النمط المذكور بكودك: [2 متابعة، 1 اهتمام، 1 متابعة، 1 ترند] ثم [2 متابعة، 1 اهتمام، 1 ترند، 1 متابعة]
         
         # الجزء الأول من النمط
         for _ in range(2):
@@ -845,13 +1054,9 @@ class FeedView(APIView):
         if f_idx < len(following_posts):
             mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
 
-        # إضافة أي بوستات متبقية في القوائم المقتطعة (Fallback في حال نقص أي قائمة)
-        while f_idx < len(following_posts):
+        # 🚀 تعبئة أي نقص فوراً من بوستات المتابعين لضمان إكمال الـ 10 بوستات بالكامل
+        while len(mixed_feed_ids) < PAGE_SIZE and f_idx < len(following_posts):
             mixed_feed_ids.append(following_posts[f_idx]); f_idx += 1
-        while i_idx < len(interest_posts):
-            mixed_feed_ids.append(interest_posts[i_idx]); i_idx += 1
-        while t_idx < len(trending_posts):
-            mixed_feed_ids.append(trending_posts[t_idx]); t_idx += 1
 
         # إزالة التكرار مع الحفاظ على الترتيب
         mixed_feed_ids = list(dict.fromkeys(mixed_feed_ids))
@@ -888,8 +1093,6 @@ class FeedView(APIView):
             .values_list("post_id", flat=True)
         )
 
-        # 9. الترقيم المزيف المخصص (لأننا قمنا بالـ Slicing مسبقاً لحماية الأداء)
-        # نقوم بإنشاء باجنيتور مخصص يخدع الفرونت إند ليعتقد أن هناك صفحات تالية دائماً طالما الفيد ممتلئ
         # -------------------------------------------------------------
         # 9. الترقيم المخصص (يدوي وآمن لحماية الأداء ومنع الـ AttributeError)
         # -------------------------------------------------------------
@@ -900,11 +1103,14 @@ class FeedView(APIView):
             'saved_ids': saved_ids,
         })
         
-        # التحقق إذا كان هناك صفحة تالية (إذا رجعت الصفحة الحالية كاملة العدد، نفترض وجود المزيد لـ Infinite Scroll)
-        has_next = len(final_posts) >= PAGE_SIZE
+        # التحقق هل يوجد المزيد من بوستات المتابعين بقاعدة البيانات للصفحة التالية
+        total_following_posts = Post.objects.filter(user_id__in=following_ids).count()
+        has_next = (page_num * PAGE_SIZE) < total_following_posts or len(final_posts) >= PAGE_SIZE
         
         # بناء روابط الـ Next والـ Previous بشكل ديناميكي ومتوافق مع الفرونت إند
         current_url = request.build_absolute_uri()
+        from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
+        from rest_framework.response import Response
         
         def get_page_url(page_to_set):
             u = urlparse(current_url)
@@ -919,11 +1125,15 @@ class FeedView(APIView):
         return Response({
             'next': next_link,
             'previous': previous_link,
-            'count': None,  # نضعها None لأن الفيد متقلب وليس له حجم ثابت تماماً
+            'count': total_following_posts,
             'results': serializer.data
         })
 
 
+
+
+
+# يلي فوقو
 #يلي حبيتو
 # class FeedView(APIView):
 #     permission_classes = [IsAuthenticated]
