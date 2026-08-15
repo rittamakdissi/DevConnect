@@ -171,10 +171,8 @@ urlpatterns = [
     path('summarize_content/', SummarizeAPIView.as_view(), name='summarize_content/'),
 
 
-    #path('ask-ai/', AskAIView.as_view(), name='ask-ai'),
 
     
-    path('suggest-reply/', SuggestReplyView.as_view(), name='suggest-reply'),
 
 
 

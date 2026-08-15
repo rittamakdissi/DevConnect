@@ -2336,8 +2336,8 @@ class SuggestTagsView(APIView):
         )
 
         payload = {
-           # "model": "openai/gpt-oss-120b",
-            "model": "llama-3.1-8b-instant",
+            "model": "openai/gpt-oss-120b",
+            #"model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Extract the most important tags from this text:\n\n{content}"}
@@ -2495,7 +2495,8 @@ class ExplainCodeAPIView(APIView):
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+           # "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_prompt}
@@ -2620,7 +2621,8 @@ class ExplainCodeLineByLineAPIView(APIView):
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+           # "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_prompt}
@@ -2877,7 +2879,9 @@ class GeneratePostAPIView(APIView):
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+
+           # "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {
@@ -3075,8 +3079,8 @@ class ImprovePostAPIView(APIView):
         }
         
         payload = {
-            #"model": "gemma2-9b-it",
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+            #"model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Rewrite this professionally:\n\n{user_text}"}
@@ -3174,7 +3178,8 @@ class ClassifyPostAPIView(APIView):
         }
 
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "openai/gpt-oss-120b",
+            #"model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_content}
@@ -3509,7 +3514,8 @@ class SummarizeAPIView(APIView):
         )
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+           # "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_prompt}
@@ -3632,7 +3638,8 @@ class FindBestAnswerAPIView(APIView):
         )
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
+           # "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": user_prompt}
@@ -3703,49 +3710,3 @@ class FindBestAnswerAPIView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 ############THE END
-
-#غير مستخدم
-class SuggestReplyView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        post_id = request.data.get("post_id")
-        comment_id = request.data.get("comment_id")
-        
-        post = get_object_or_404(Post, id=post_id)
-        comment = get_object_or_404(Comment, id=comment_id)
-
-        prompt = f"""
-        You are a helpful assistant for a developer forum.
-        Context:
-        Post Title/Content: {post.content[:1000]}
-        Comment to reply to: {comment.content[:500]}
-        but keep technical terms in english even if the comment is in Arabic.
-        Write a concise, helpful, and professional reply. 
-        Keep it under 50 words. Do not use hashtags.
-        """
-        
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            #"model": "gemma2-9b-it",
-            "messages": [{"role": "user", "content": prompt}]
-        }
-
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
-            response.raise_for_status() # التأكد أن الطلب نجح
-            
-            data = response.json()
-            suggestion = data['choices'][0]['message']['content']
-            
-            return Response({"suggestion": suggestion}, status=200)
-
-        except requests.exceptions.ConnectionError:
-            return Response({"error": "Connection to AI server failed."}, status=503)
-        except Exception as e:
-            return Response({"error": f"AI suggestion failed: {str(e)}"}, status=500)
