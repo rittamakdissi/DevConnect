@@ -2972,6 +2972,8 @@ class GeneratePostAPIView(APIView):
             "- Avoid formal, textbook, or heavy Arabic.\n"
             "- DO NOT translate from English literally.\n"
             "- Use natural phrasing like real social media posts.\n"
+            "- Balance between conversational and professional: sound human but still technical and credible.\n"
+            "- Avoid overly casual or slang expressions — keep it natural but polished.\n"
             "- Keep flow between sentences (important).\n"
             "- Fix any broken words or typos in the input.\n"
             "- Do NOT copy strange characters or corrupted text.\n"
