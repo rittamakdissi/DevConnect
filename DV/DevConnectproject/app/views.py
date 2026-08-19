@@ -2731,90 +2731,123 @@ class ExplainCodeLineByLineAPIView(APIView):
 
 ####################################################################################
 
+#class GeneratePostAPIView(APIView):
+    # "نهائي"
+    # permission_classes = [IsAuthenticated]
 
-# class GeneratePostAPIView(APIView):
-#     """
-#    بيكتشف اللغة تلقائياً وبيولد منشور احترافي بناءً على المحتوى
-#     """
-#     permission_classes = [IsAuthenticated]
+    # def post(self, request):
+    #     user_content = request.data.get("content")
 
-#     def post(self, request):
-#         # 1. استلام محتوى المنشور (سواء كان فكرة أو مسودة)
-#         user_content = request.data.get("content")
+    #     if not user_content:
+    #         return Response(
+    #             {"error": "No content provided to enhance"},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
 
-#         if not user_content:
-#             return Response({"error": "No content provided to enhance"}, status=status.HTTP_400_BAD_REQUEST)
+    #     system_instruction = (
+    #         "You are a top-tier Tech Influencer and Social Media Strategist. "
+    #         "Your goal is to turn ideas into VIRAL posts.\n\n"
 
-# #         # 2. التعليمات الذكية (توجيه الموديل ليرد بنفس اللغة تلقائياً)
-# #         system_instruction = (
-# #     "You are a top-tier Tech Influencer and Social Media Strategist. "
-# #     "Your goal is to turn boring ideas into 'VIRAL' posts. "
-# #     "STYLE RULES: "
-# #     "1. Hook the reader with a powerful first sentence. "
-# #     "2. Use a professional yet 'enthusiastic' and modern tone. "
-# #     "3. Keep it exactly 5 punchy sentences. "
-# #     "4. NO robot talk (e.g., avoid 'In conclusion', 'It is important to'). "
-# #     "5. Use the SAME LANGUAGE as the user (Arabic or English).no russian.no other language "
-# #     "6. NO translations, NO explanations. Just the post."
-#         system_instruction = (
-# "You are a top-tier Tech Influencer and Social Media Strategist. "
-# "Your goal is to turn ideas into VIRAL posts. "
+    #         "LANGUAGE RULES:\n"
+    #         "- Detect the language of the input automatically.\n"
+    #         "- If the input is clearly English → respond in English ONLY.\n"
+    #         "- If the input is clearly Arabic → respond in Arabic ONLY.\n"
+    #         "- do not use RUSSIAN words or characters\n"
+    #         "- NEVER switch language or translate.\n\n"
 
-# "LANGUAGE RULES: "
-# "If the input is Arabic: "
-# "- Write in natural, human Arabic (not formal, not translated). "
-# "- Use smooth, conversational tone like real social media posts. "
-# "- Avoid literal translation from English. "
-# "- Keep sentences short, punchy, and well-flowing. "
+    #         "ARABIC STYLE (when input is Arabic):\n"
+    #         "- Write like a REAL human, not a translator.\n"
+    #         "- Use simple, smooth, conversational Arabic.\n"
+    #         "- Avoid formal, textbook, or heavy Arabic.\n"
+    #         "- DO NOT translate from English literally.\n"
+    #         "- Use natural phrasing like real social media posts.\n"
+    #         "- Keep flow between sentences (important).\n"
+    #         "- Fix any broken words or typos in the input.\n"
+    #         "- Do NOT copy strange characters or corrupted text.\n"
+    #         "- Prefer short sentences over long complex ones.\n\n"
+    #         "- Make it sound like how people actually post on LinkedIn or Twitter.\n"
+    #         "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+    #         "- Do NOT translate or transliterate technical terms into Arabic.\n"
 
-# "If the input is English: "
-# "- Use a modern, enthusiastic, professional tone. "
+    #         "ENGLISH STYLE:\n"
+    #         "- Modern, confident, engaging tone.\n\n"
 
-# "GENERAL RULES: "
-# "- Think about the idea in English first, then write in the user's language. "
-# "- Hook the reader with a strong first sentence. "
-# "- Write exactly 5 punchy sentences. "
-# "- No robotic phrases. No introductions. "
-# "- No Russian, no other languages."
-# )
+    #         "GENERAL RULES:\n"
+    #         "- Think in English internally, but output in user's language.\n"
+    #         "- Start with a strong hook.\n"
+    #         "- Write EXACTLY 5 punchy sentences.\n"
+    #         "- No robotic phrases.\n"
+    #         "- No introductions.\n"
+    #         "- No hashtags.\n"
+    #         "- No emojis.\n"
+    #         "- No Russian or other languages.\n"
+    #         #"- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+    #         "- Keep technical terms in English .\n"
+    #         "- Do NOT translate or transliterate technical terms into Arabic.\n"
+    #         "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
+    #     )
 
+    #     url = "https://api.groq.com/openai/v1/chat/completions"
 
-#         # 3. إعدادات Groq
-#         url = "https://api.groq.com/openai/v1/chat/completions"
-        
-#         headers = {
-#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-#             "Content-Type": "application/json"
-#         }
-        
-#         payload = {
-#              #"model": "gemma2-9b-it",
-#             # "model": "llama-3.1-8b-instant",
-#             "model": "llama-3.3-70b-versatile",
-#             "messages": [
-#                 {"role": "system", "content": system_instruction},
-#                 {"role": "user", "content": f"Enhance this content into a 5-sentence post: {user_content}"}
-#             ],
-#             "temperature": 0.4,
-#             "max_tokens":300
+    #     headers = {
+    #         "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+    #         "Content-Type": "application/json"
+    #     }
 
-#         }
+    #     payload = {
+    #         #"model": "llama-4-scout-17b-16e-instruct",
+    #         "model": "openai/gpt-oss-120b",
 
-#         try:
-#             response = requests.post(url, json=payload, headers=headers,timeout=20)
-#             result = response.json()
+    #        # "model": "llama-3.3-70b-versatile",
+    #         "messages": [
+    #             {"role": "system", "content": system_instruction},
+    #             {
+    #                 "role": "user",
+    #                 "content": f"""
+    #                     Detect the language of this text and respond in the SAME language.
+    #                     IMPORTANT:
+    #                     If the text is Arabic, REWRITE it in a clean, natural, human way (not translation).
+    #                     Turn it into a viral 5-sentence post:
+    #                     {user_content}
+    #                     """            }
+    #         ],
+    #         "temperature": 0.35,   
+    #         "max_tokens": 500
+    #     }
+
+    #     try:
+    #         response = requests.post(url, json=payload, headers=headers, timeout=20)
             
-#             if 'choices' in result:
-#                 enhanced_post = result['choices'][0]['message']['content'].strip()
-                
-#                 return Response({
-#                     "enhanced_post": enhanced_post,
-#                 }, status=status.HTTP_200_OK)
-#             else:
-#                 return Response({"error": "AI Generation failed"}, status=status.HTTP_400_BAD_REQUEST)
+    #         if response.status_code != 200:
+    #             return Response(
+    #                 {"error": "Groq API error", "details": response.text},
+    #                 status=status.HTTP_400_BAD_REQUEST
+    #             )
 
-#         except Exception as e:
-#             return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    #         result = response.json()
+
+    #         if 'choices' in result:
+    #             enhanced_post = result['choices'][0]['message']['content'].strip()
+    #             enhanced_post = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', enhanced_post)
+    #             return Response({
+    #                 "enhanced_post": enhanced_post,
+    #             }, status=status.HTTP_200_OK)
+
+    #         return Response(
+    #             {"error": "AI Generation failed", "details": result},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
+
+    #     except Exception as e:
+    #         return Response(
+    #             {"error": "Connection error", "details": str(e)},
+    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    #         )     
+
+
+
+
+# تجريب
 class GeneratePostAPIView(APIView):
     "نهائي"
     permission_classes = [IsAuthenticated]
@@ -2871,35 +2904,25 @@ class GeneratePostAPIView(APIView):
             "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
         )
 
-        url = "https://api.groq.com/openai/v1/chat/completions"
+        url = "https://dreamprompting.com/api/v1/chat/completions"
 
         headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Authorization": f"Bearer {settings.DREAMPROMPTING_API_KEY}",
             "Content-Type": "application/json"
         }
 
         payload = {
-            "model": "openai/gpt-oss-120b",
-
-           # "model": "llama-3.3-70b-versatile",
+            "model": "groq/llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {
-                    "role": "user",
-                    "content": f"""
-                        Detect the language of this text and respond in the SAME language.
-                        IMPORTANT:
-                        If the text is Arabic, REWRITE it in a clean, natural, human way (not translation).
-                        Turn it into a viral 5-sentence post:
-                        {user_content}
-                        """            }
+                {"role": "user", "content": f"...{user_content}"}
             ],
-            "temperature": 0.35,   
+            "temperature": 0.35,
             "max_tokens": 500
         }
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=20)
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
             
             if response.status_code != 200:
                 return Response(
@@ -2926,6 +2949,7 @@ class GeneratePostAPIView(APIView):
                 {"error": "Connection error", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )      
+         
 
 ##################################################################################################
 # class ImprovePostAPIView(APIView):
@@ -3079,6 +3103,7 @@ class ImprovePostAPIView(APIView):
         }
         
         payload = {
+            #"model": "llama-4-scout-17b-16e-instruct",
             "model": "openai/gpt-oss-120b",
             #"model": "llama-3.3-70b-versatile",
             "messages": [

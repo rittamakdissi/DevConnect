@@ -226,7 +226,6 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
 
 
-
 # إعدادات تخزين الصور (Cloudinary)
 # CLOUDINARY_STORAGE = {
 #     'CLOUD_NAME': config('CLOUDINARY_CLOUD_NAME'),
@@ -265,8 +264,7 @@ STORAGES = {
 GROQ_API_KEY = config('GROQ_API_KEY')
 HUGGINGFACE_API_KEY = config('HUGGINGFACE_API_KEY')
 
-
-
+DREAMPROMPTING_API_KEY = config('DREAMPROMPTING_API_KEY')
 # إعدادات إضافية لتحسين استقرار الاتصال
 import socket
 socket.setdefaulttimeout(60) # رفع المهلة إلى 60 ثانية
