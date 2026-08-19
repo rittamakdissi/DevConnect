@@ -2592,6 +2592,7 @@ class ExplainCodeLineByLineAPIView(APIView):
                 "- لا تكرر نفس الفكرة داخل نفس الـ section.\n"
                 "- استخدم مصطلحات البرمجة بالإنجليزية داخل النص العربي بشكل طبيعي.\n"
                 "- ممنوع استخدام أي أحرف غير العربية والإنجليزية.\n"
+                "- لا تبدأ بعبارات ترحيبيّة.\n"
                 "- اجعل الشرح تقني لكن واضح وسهل القراءة.\n")
 
              user_prompt = f"Explain this code step by step:\n\n{user_code}"
@@ -2613,34 +2614,36 @@ class ExplainCodeLineByLineAPIView(APIView):
             )
             user_prompt = f"Explain this code step by step:\n\n{user_code}"
 
-        url = "https://api.groq.com/openai/v1/chat/completions"
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
 
         headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
 
         payload = {
-            "model": "openai/gpt-oss-120b",
-           # "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_prompt}
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": system_instruction + f"\n\n{user_prompt}"}]
+                }
             ],
-            "temperature": 0.2,  
-            "max_tokens": 1500    
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 1500
+            }
         }
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
+
+            if response.status_code != 200:
+                return Response({"error": "Gemini API error", "details": response.text}, status=status.HTTP_400_BAD_REQUEST)
+
             result = response.json()
 
-            if 'choices' in result and result['choices']:
-                explanation = result['choices'][0]['message']['content'].strip()
-
+            if 'candidates' in result:
+                explanation = result['candidates'][0]['content']['parts'][0]['text'].strip()
                 explanation = re.sub(r'[\u3000-\u9FFF\uAC00-\uD7AF]', '', explanation)
-
-                # توحيد المصطلحات
                 explanation = explanation.replace("شفرة برمجية", "كود")
                 explanation = explanation.replace("الشفرة", "الكود")
                 explanation = explanation.replace("شفرة", "كود")
@@ -2650,23 +2653,12 @@ class ExplainCodeLineByLineAPIView(APIView):
                 if not explanation:
                     explanation = "No explanation generated"
 
-                return Response(
-                    {"explanation": explanation},
-                    status=status.HTTP_200_OK
-                )
+                return Response({"explanation": explanation}, status=status.HTTP_200_OK)
 
-            else:
-                return Response({
-                    "error": "Failed to get response from AI",
-                    "details": result
-                }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Failed to get response from AI", "details": result}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({
-                "error": "Connection error",
-                "details": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # هاد الكود بيشرح بالعربي فقط 
@@ -2847,7 +2839,109 @@ class ExplainCodeLineByLineAPIView(APIView):
 
 
 
-# تجريب
+#llama من دريم برومتنغ بس جدا بطيئ تجريب
+# class GeneratePostAPIView(APIView):
+#     "نهائي"
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         user_content = request.data.get("content")
+
+#         if not user_content:
+#             return Response(
+#                 {"error": "No content provided to enhance"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         system_instruction = (
+#             "You are a top-tier Tech Influencer and Social Media Strategist. "
+#             "Your goal is to turn ideas into VIRAL posts.\n\n"
+
+#             "LANGUAGE RULES:\n"
+#             "- Detect the language of the input automatically.\n"
+#             "- If the input is clearly English → respond in English ONLY.\n"
+#             "- If the input is clearly Arabic → respond in Arabic ONLY.\n"
+#             "- do not use RUSSIAN words or characters\n"
+#             "- NEVER switch language or translate.\n\n"
+
+#             "ARABIC STYLE (when input is Arabic):\n"
+#             "- Write like a REAL human, not a translator.\n"
+#             "- Use simple, smooth, conversational Arabic.\n"
+#             "- Avoid formal, textbook, or heavy Arabic.\n"
+#             "- DO NOT translate from English literally.\n"
+#             "- Use natural phrasing like real social media posts.\n"
+#             "- Keep flow between sentences (important).\n"
+#             "- Fix any broken words or typos in the input.\n"
+#             "- Do NOT copy strange characters or corrupted text.\n"
+#             "- Prefer short sentences over long complex ones.\n\n"
+#             "- Make it sound like how people actually post on LinkedIn or Twitter.\n"
+#             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+#             "- Do NOT translate or transliterate technical terms into Arabic.\n"
+
+#             "ENGLISH STYLE:\n"
+#             "- Modern, confident, engaging tone.\n\n"
+
+#             "GENERAL RULES:\n"
+#             "- Think in English internally, but output in user's language.\n"
+#             "- Start with a strong hook.\n"
+#             "- Write EXACTLY 5 punchy sentences.\n"
+#             "- No robotic phrases.\n"
+#             "- No introductions.\n"
+#             "- No hashtags.\n"
+#             "- No emojis.\n"
+#             "- No Russian or other languages.\n"
+#             #"- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
+#             "- Keep technical terms in English .\n"
+#             "- Do NOT translate or transliterate technical terms into Arabic.\n"
+#             "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
+#         )
+
+#         url = "https://dreamprompting.com/api/v1/chat/completions"
+
+#         headers = {
+#             "Authorization": f"Bearer {settings.DREAMPROMPTING_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+
+#         payload = {
+#             "model": "groq/llama-3.3-70b-versatile",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": f"...{user_content}"}
+#             ],
+#             "temperature": 0.35,
+#             "max_tokens": 500
+#         }
+
+#         try:
+#             response = requests.post(url, json=payload, headers=headers, timeout=60)
+            
+#             if response.status_code != 200:
+#                 return Response(
+#                     {"error": "Groq API error", "details": response.text},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+
+#             result = response.json()
+
+#             if 'choices' in result:
+#                 enhanced_post = result['choices'][0]['message']['content'].strip()
+#                 enhanced_post = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', enhanced_post)
+#                 return Response({
+#                     "enhanced_post": enhanced_post,
+#                 }, status=status.HTTP_200_OK)
+
+#             return Response(
+#                 {"error": "AI Generation failed", "details": result},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         except Exception as e:
+#             return Response(
+#                 {"error": "Connection error", "details": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )      
+         
 class GeneratePostAPIView(APIView):
     "نهائي"
     permission_classes = [IsAuthenticated]
@@ -2885,6 +2979,8 @@ class GeneratePostAPIView(APIView):
             "- Make it sound like how people actually post on LinkedIn or Twitter.\n"
             "- Keep technical terms in English (e.g., web development, API, database,..etc).\n"
             "- Do NOT translate or transliterate technical terms into Arabic.\n"
+            "- Write in Levantine Arabic (Syrian/Lebanese style), NOT Egyptian dialect.\n"
+            "- Never use Egyptian words like 'ده', 'هتنتهي', 'مش' (Egyptian) — use 'هاد', 'رح', 'ما' instead.\n"
 
             "ENGLISH STYLE:\n"
             "- Modern, confident, engaging tone.\n\n"
@@ -2904,21 +3000,22 @@ class GeneratePostAPIView(APIView):
             "- Use ONLY valid Arabic or English characters. Do NOT generate any strange Unicode symbols or foreign characters.\n"
         )
 
-        url = "https://dreamprompting.com/api/v1/chat/completions"
-
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
         headers = {
-            "Authorization": f"Bearer {settings.DREAMPROMPTING_API_KEY}",
             "Content-Type": "application/json"
         }
 
         payload = {
-            "model": "groq/llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"...{user_content}"}
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": system_instruction + f"\n\n{user_content}"}]
+                }
             ],
-            "temperature": 0.35,
-            "max_tokens": 500
+            "generationConfig": {
+                "temperature": 0.35,
+                "maxOutputTokens":700,
+            }
         }
 
         try:
@@ -2926,14 +3023,14 @@ class GeneratePostAPIView(APIView):
             
             if response.status_code != 200:
                 return Response(
-                    {"error": "Groq API error", "details": response.text},
+                    {"error": "Gemini API error", "details": response.text},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
             result = response.json()
 
-            if 'choices' in result:
-                enhanced_post = result['choices'][0]['message']['content'].strip()
+            if 'candidates' in result:
+                enhanced_post = result['candidates'][0]['content']['parts'][0]['text'].strip()
                 enhanced_post = re.sub(r'[\u4E00-\u9FFF\u3400-\u4DBF]', '', enhanced_post)
                 return Response({
                     "enhanced_post": enhanced_post,
@@ -2949,7 +3046,7 @@ class GeneratePostAPIView(APIView):
                 {"error": "Connection error", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )      
-         
+                  
 
 ##################################################################################################
 # class ImprovePostAPIView(APIView):
@@ -3142,6 +3239,107 @@ class ImprovePostAPIView(APIView):
 
 ########################################################################
   
+# class ClassifyPostAPIView(APIView):
+#     "نهائي"
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         user_content = request.data.get("content")
+#         user_lang = request.data.get("language", "en")
+
+#         if not user_content:
+#             return Response({"error": "No content provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         system_instruction = (
+#             "You are a highly accurate classifier for tech content.\n\n"
+
+#             "Classify the input into EXACTLY ONE of these categories:\n"
+#             "[question, project, information, article]\n\n"
+
+#             "DEFINITIONS:\n"
+#             "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
+#             " project: user built, created, developed, finished, or worked on something "
+#             "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
+#             "even if the sentence also includes explanation or opinion\n"        
+#             "- information: short factual or simple statement or declarative statement\n"
+#             "- article: long, analytical, or opinion-based content\n\n"
+#             "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
+
+#             "STRICT RULES:\n"
+#             "- Output ONLY one word\n"
+#             "- No punctuation\n"
+#             "- No explanation\n"
+#             "- No extra text\n"
+            
+#         )
+
+
+# #هاد يلي عطاني ياه كلود بس ما جربتو
+# #  system_instruction = (
+# #     "You are a post classifier. Classify the post into exactly one of these categories:\n\n"
+# #     "- question: the user is asking for help or has a problem they need solved\n"
+# #     "- project: the user is announcing or presenting something they built or completed\n"
+# #     "- information: the user is sharing a short tip, fact, or useful info\n"
+# #     "- article: the user wrote a long detailed explanation or tutorial\n\n"
+# #     "RULES:\n"
+# #     "- Return ONLY the category name, nothing else\n"
+# #     "- No explanation, no punctuation, just one word\n"
+# #     "- If unsure between information and article, check length — short = information, long = article\n"
+# #     "- project ONLY if the user says they built, finished, or is presenting something they made\n"
+# # )
+
+#         user_prompt = f"Classify this post:\n\n{content}"
+
+
+
+#         url = "https://api.groq.com/openai/v1/chat/completions"
+
+#         headers = {
+#             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+#             "Content-Type": "application/json"
+#         }
+
+#         payload = {
+#             "model": "openai/gpt-oss-120b",
+#             #"model": "llama-3.1-8b-instant",
+#             "messages": [
+#                 {"role": "system", "content": system_instruction},
+#                 {"role": "user", "content": user_content}
+#             ],
+#             "temperature": 0.0,
+#             "max_tokens": 5
+#         }
+
+#         try:
+#             response = requests.post(url, json=payload, headers=headers, timeout=15)
+#             result = response.json()
+
+#             if 'choices' in result:
+#                 post_type = result['choices'][0]['message']['content'].strip().lower()
+
+#                 post_type = "".join(filter(str.isalpha, post_type))
+
+#                 valid = ["question", "project", "information", "article"]
+#                 if post_type not in valid:
+#                     post_type = "information"
+
+
+#                 return Response({
+#                     "post_type": post_type
+#                 }, status=status.HTTP_200_OK)
+
+#             else:
+#                 return Response({
+#                     "error": "Classification failed",
+#                     "details": result
+#                 }, status=status.HTTP_400_BAD_REQUEST)
+
+#         except Exception as e:
+#             return Response({
+#                 "error": "Connection error",
+#                 "details": str(e)
+#             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ClassifyPostAPIView(APIView):
     "نهائي"
     permission_classes = [IsAuthenticated]
@@ -3155,93 +3353,66 @@ class ClassifyPostAPIView(APIView):
 
         system_instruction = (
             "You are a highly accurate classifier for tech content.\n\n"
-
             "Classify the input into EXACTLY ONE of these categories:\n"
             "[question, project, information, article]\n\n"
-
             "DEFINITIONS:\n"
             "- question: asking something (how, why, what, ما هو ,هل, كيف)\n"
-            " project: user built, created, developed, finished, or worked on something "
+           "- project: user built, created, developed, finished, or worked on something "
             "(e.g., 'I built', 'I created', 'I worked on', 'I finished', 'اشتغلت على', 'بنيت', 'طورت'), "
-            "even if the sentence also includes explanation or opinion\n"        
-            "- information: short factual or simple statement or declarative statement\n"
+            "even if the sentence also includes explanation or opinion\n"
+            "- If the post contains a code snippet or programming code, classify it as 'project' if the user is sharing something they wrote, or 'question' if they are asking for help with the code.\n"
+           "- If the post contains a code snippet (with or without explanation of what it does), classify it as 'project'.\n"            "- information: short factual or simple statement or declarative statement\n"
             "- article: long, analytical, or opinion-based content\n\n"
             "- If unclear, choose the closest category. Never output anything outside the 4 categories.\n"
-
             "STRICT RULES:\n"
             "- Output ONLY one word\n"
             "- No punctuation\n"
             "- No explanation\n"
             "- No extra text\n"
-            
         )
 
-
-#هاد يلي عطاني ياه كلود بس ما جربتو
-#  system_instruction = (
-#     "You are a post classifier. Classify the post into exactly one of these categories:\n\n"
-#     "- question: the user is asking for help or has a problem they need solved\n"
-#     "- project: the user is announcing or presenting something they built or completed\n"
-#     "- information: the user is sharing a short tip, fact, or useful info\n"
-#     "- article: the user wrote a long detailed explanation or tutorial\n\n"
-#     "RULES:\n"
-#     "- Return ONLY the category name, nothing else\n"
-#     "- No explanation, no punctuation, just one word\n"
-#     "- If unsure between information and article, check length — short = information, long = article\n"
-#     "- project ONLY if the user says they built, finished, or is presenting something they made\n"
-# )
-
-        user_prompt = f"Classify this post:\n\n{content}"
-
-
-
-        url = "https://api.groq.com/openai/v1/chat/completions"
-
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
         headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
 
         payload = {
-            "model": "openai/gpt-oss-120b",
-            #"model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": user_content}
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": system_instruction + f"\n\nClassify this post:\n\n{user_content}"}]
+                }
             ],
-            "temperature": 0.0,
-            "max_tokens": 5
+            "generationConfig": {
+                "temperature": 0.0,
+                "maxOutputTokens": 5
+            }
         }
 
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=15)
+
+            if response.status_code != 200:
+                return Response({"error": "Gemini API error", "details": response.text}, status=status.HTTP_400_BAD_REQUEST)
+
             result = response.json()
 
-            if 'choices' in result:
-                post_type = result['choices'][0]['message']['content'].strip().lower()
-
+            if 'candidates' in result:
+                post_type = result['candidates'][0]['content']['parts'][0]['text'].strip().lower()
                 post_type = "".join(filter(str.isalpha, post_type))
 
                 valid = ["question", "project", "information", "article"]
                 if post_type not in valid:
                     post_type = "information"
 
+                return Response({"post_type": post_type}, status=status.HTTP_200_OK)
 
-                return Response({
-                    "post_type": post_type
-                }, status=status.HTTP_200_OK)
-
-            else:
-                return Response({
-                    "error": "Classification failed",
-                    "details": result
-                }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Classification failed", "details": result}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            return Response({
-                "error": "Connection error",
-                "details": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": "Connection error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 
 
@@ -3546,7 +3717,7 @@ class SummarizeAPIView(APIView):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.3,
-            "max_tokens": 500
+            "max_tokens": 700,
         }
 
         headers = {

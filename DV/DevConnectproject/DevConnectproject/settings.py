@@ -265,6 +265,8 @@ GROQ_API_KEY = config('GROQ_API_KEY')
 HUGGINGFACE_API_KEY = config('HUGGINGFACE_API_KEY')
 
 DREAMPROMPTING_API_KEY = config('DREAMPROMPTING_API_KEY')
+
+GEMINI_API_KEY = config('GEMINI_API_KEY')
 # إعدادات إضافية لتحسين استقرار الاتصال
 import socket
 socket.setdefaulttimeout(60) # رفع المهلة إلى 60 ثانية
